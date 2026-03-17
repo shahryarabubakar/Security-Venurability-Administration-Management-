@@ -1,0 +1,14 @@
+
+
+vulntrack/
+├── main.py                 ← FastAPI app entry point
+├── requirements.txt        ← pip dependencies
+├── .env                    ← MySQL credentials 
+├── README.md               ← Setup guide
+├── sql/schema.sql          ← Full MySQL schema + seed data
+└── app/
+    ├── database.py         ← MySQL connection helpers
+    ├── models/             ← SQL queries (assets, scans, vulns, lookups)
+    ├── routers/            ← FastAPI route handlers (5 routers)
+    ├── templates/          ← Jinja2 HTML templates + partials
+    └── static/css+js/      ← Stylesheet + modal JS
