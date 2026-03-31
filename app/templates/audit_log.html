@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Audit Log{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div><h1 class="page-title">Audit Log</h1><p class="page-subtitle">Last 200 actions across the system</p></div>
+</div>
+
+<div class="section-card">
+    <table class="data-table">
+        <thead>
+            <tr><th>Time</th><th>User</th><th>Action</th><th>Target</th><th>Detail</th></tr>
+        </thead>
+        <tbody>
+        {% set action_colors = {'CREATE':'green','UPDATE':'yellow','DELETE':'red','IMPORT':'blue'} %}
+        {% for log in logs %}
+        <tr>
+            <td class="mono text-muted">{{ log[6].strftime('%Y-%m-%d %H:%M') if log[6] else '—' }}</td>
+            <td>{{ log[1] }}</td>
+            <td><span class="badge badge-{{ action_colors.get(log[2], 'gray') }}">{{ log[2] }}</span></td>
+            <td class="text-muted">{{ log[3] }} #{{ log[4] }}</td>
+            <td class="text-muted">{{ log[5] or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty-row">No audit log entries yet.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

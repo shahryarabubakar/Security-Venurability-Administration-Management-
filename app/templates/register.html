@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register — SVAMS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="auth-body">
+<div class="auth-container">
+    <div class="auth-brand">
+        <span class="brand-icon" style="font-size:2rem">⬡</span>
+        <span class="brand-text" style="font-size:1.4rem">SVAMS</span>
+    </div>
+    <h1 class="auth-title">Create account</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}{% for category, message in messages %}
+            <div class="flash flash-{{ category }}" style="margin-bottom:1rem">
+                <span class="flash-icon">{% if category == 'success' %}✓{% else %}✕{% endif %}</span>{{ message }}
+            </div>
+        {% endfor %}{% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('register') }}">
+        <div class="form-group" style="margin-bottom:1rem">
+            <label class="form-label">Username</label>
+            <input class="form-input" type="text" name="username" required autofocus>
+        </div>
+        <div class="form-group" style="margin-bottom:1rem">
+            <label class="form-label">Email</label>
+            <input class="form-input" type="email" name="email" required>
+        </div>
+        <div class="form-group" style="margin-bottom:1rem">
+            <label class="form-label">Password</label>
+            <input class="form-input" type="password" name="password" required>
+        </div>
+        <div class="form-group" style="margin-bottom:1.5rem">
+            <label class="form-label">Role</label>
+            <select class="form-select" name="role">
+                <option value="analyst">Analyst</option>
+                <option value="admin">Admin</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%">Create Account</button>
+    </form>
+    <p style="text-align:center;margin-top:1.25rem;font-size:.85rem;color:var(--text-muted)">
+        Already have an account? <a href="{{ url_for('login') }}">Sign in</a>
+    </p>
+</div>
+</body>
+</html>

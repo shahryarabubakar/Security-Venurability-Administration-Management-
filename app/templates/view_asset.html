@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}{{ asset[1] }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">{{ asset[1] }}</h1>
+        <p class="page-subtitle mono">{{ asset[2] }}</p>
+    </div>
+    <div class="page-actions">
+        <a href="{{ url_for('add_vulnerability') }}?asset_id={{ asset[0] }}" class="btn btn-primary">+ Add Vulnerability</a>
+        <a href="{{ url_for('upload_zap') }}?asset_id={{ asset[0] }}" class="btn btn-outline">Import ZAP</a>
+        <a href="{{ url_for('list_assets') }}" class="btn btn-outline">← Assets</a>
+    </div>
+</div>
+
+<div class="detail-grid">
+    <div class="detail-card"><div class="detail-label">OS</div><div class="detail-value">{{ asset[3] or '—' }}</div></div>
+    <div class="detail-card"><div class="detail-label">Type</div><div class="detail-value">{{ asset[4] or '—' }}</div></div>
+    <div class="detail-card"><div class="detail-label">Owner</div><div class="detail-value">{{ asset[7] }}</div></div>
+    <div class="detail-card"><div class="detail-label">Status</div><div class="detail-value"><span class="badge badge-{{ 'green' if asset[5]=='Active' else 'gray' }}">{{ asset[5] }}</span></div></div>
+    <div class="detail-card"><div class="detail-label">Added</div><div class="detail-value text-muted">{{ asset[6].strftime('%Y-%m-%d') if asset[6] else '—' }}</div></div>
+    <div class="detail-card"><div class="detail-label">Vulnerabilities</div><div class="detail-value {{ 'text-red' if vulns|length > 0 }}">{{ vulns|length }}</div></div>
+</div>
+
+<!-- Tags -->
+{% if asset_tags %}
+<div class="section-card" style="padding:1rem 1.25rem;margin-bottom:1.5rem">
+    <span class="text-muted" style="font-size:.8rem;margin-right:.75rem">TAGS</span>
+    {% for t in asset_tags %}
+    <span class="tag-pill" style="background:{{ t[2] }}22;color:{{ t[2] }};border-color:{{ t[2] }}44">{{ t[1] }}</span>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Vulnerabilities -->
+<div class="section-card">
+    <div class="card-header">
+        <h2 class="card-title">Vulnerabilities</h2>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr><th>Name</th><th>Risk</th><th>Status</th><th>Notes</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+        {% for v in vulns %}
+        <tr>
+            <td><a href="{{ url_for('view_vulnerability', vuln_id=v[0]) }}" class="table-link">{{ v[1] }}</a></td>
+            <td><span class="badge badge-risk-{{ v[2]|lower }}">{{ v[2] }}</span></td>
+            <td>
+                <form method="POST" action="{{ url_for('update_vuln_status', vuln_id=v[0]) }}" style="display:inline">
+                    <select name="status" class="inline-select" onchange="this.form.submit()">
+                        {% for s in ['Open','In Progress','Resolved'] %}
+                        <option value="{{ s }}" {{ 'selected' if v[5]==s }}>{{ s }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </td>
+            <td class="text-muted">{{ v[7] }} note{{ 's' if v[7]!=1 }}</td>
+            <td>
+                <div class="action-btns">
+                    <a href="{{ url_for('view_vulnerability', vuln_id=v[0]) }}" class="btn btn-xs btn-outline">Details</a>
+                    <form method="POST" action="{{ url_for('delete_vulnerability', vuln_id=v[0]) }}" onsubmit="return confirm('Delete this vulnerability?')">
+                        <button type="submit" class="btn btn-xs btn-danger">Delete</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty-row">No vulnerabilities. <a href="{{ url_for('add_vulnerability') }}">Add one</a> or <a href="{{ url_for('upload_zap') }}">import from ZAP</a>.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Danger Zone -->
+<div class="section-card danger-zone">
+    <div class="card-header"><h2 class="card-title text-red">Danger Zone</h2></div>
+    <div class="danger-row">
+        <div>
+            <strong>Delete this asset</strong>
+            <p class="text-muted">Permanently removes the asset, all its vulnerabilities, notes, and tags.</p>
+        </div>
+        <form method="POST" action="{{ url_for('delete_asset', asset_id=asset[0]) }}" onsubmit="return confirm('Delete {{ asset[1] }} permanently?')">
+            <button type="submit" class="btn btn-danger">Delete Asset</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

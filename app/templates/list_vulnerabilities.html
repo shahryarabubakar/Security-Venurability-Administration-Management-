@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Vulnerabilities{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div><h1 class="page-title">Vulnerabilities</h1><p class="page-subtitle">{{ vulns|length }} result{{ 's' if vulns|length != 1 }}</p></div>
+    <div class="page-actions">
+        <a href="{{ url_for('add_vulnerability') }}" class="btn btn-primary">+ Add</a>
+        <a href="{{ url_for('upload_zap') }}" class="btn btn-outline">Import ZAP</a>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <form method="GET" action="{{ url_for('list_vulnerabilities') }}" class="filter-form">
+        <input class="form-input" type="text" name="q" value="{{ search }}" placeholder="Search name or asset...">
+        <select class="form-select" name="risk" onchange="this.form.submit()">
+            <option value="">All risks</option>
+            {% for r in ['High','Medium','Low','Info'] %}
+            <option value="{{ r }}" {{ 'selected' if risk_filter==r }}>{{ r }}</option>
+            {% endfor %}
+        </select>
+        <select class="form-select" name="status" onchange="this.form.submit()">
+            <option value="">All statuses</option>
+            {% for s in ['Open','In Progress','Resolved'] %}
+            <option value="{{ s }}" {{ 'selected' if status_filter==s }}>{{ s }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-outline">Search</button>
+        {% if search or risk_filter or status_filter %}
+        <a href="{{ url_for('list_vulnerabilities') }}" class="btn btn-outline">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<div class="section-card">
+    <table class="data-table">
+        <thead><tr><th>Name</th><th>Risk</th><th>Asset</th><th>Status</th><th>Notes</th><th>Discovered</th><th>Actions</th></tr></thead>
+        <tbody>
+        {% for v in vulns %}
+        <tr>
+            <td><a href="{{ url_for('view_vulnerability', vuln_id=v[0]) }}" class="table-link">{{ v[1] }}</a></td>
+            <td><span class="badge badge-risk-{{ v[2]|lower }}">{{ v[2] }}</span></td>
+            <td><a href="{{ url_for('view_asset', asset_id=v[6]) }}" class="table-link">{{ v[5] }}</a></td>
+            <td>
+                <form method="POST" action="{{ url_for('update_vuln_status', vuln_id=v[0]) }}" style="display:inline">
+                    <select name="status" class="inline-select" onchange="this.form.submit()">
+                        {% for s in ['Open','In Progress','Resolved'] %}
+                        <option value="{{ s }}" {{ 'selected' if v[3]==s }}>{{ s }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </td>
+            <td class="text-muted">{{ v[7] }}</td>
+            <td class="mono text-muted">{{ v[4].strftime('%Y-%m-%d') if v[4] else '—' }}</td>
+            <td>
+                <div class="action-btns">
+                    <a href="{{ url_for('view_vulnerability', vuln_id=v[0]) }}" class="btn btn-xs btn-outline">Details</a>
+                    <form method="POST" action="{{ url_for('delete_vulnerability', vuln_id=v[0]) }}" onsubmit="return confirm('Delete?')">
+                        <button type="submit" class="btn btn-xs btn-danger">Delete</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty-row">No vulnerabilities found. <a href="{{ url_for('add_vulnerability') }}">Add one</a>.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div><h1 class="page-title">Users</h1><p class="page-subtitle">All registered accounts</p></div>
+    <a href="{{ url_for('register') }}" class="btn btn-primary">+ Add User</a>
+</div>
+<div class="section-card">
+    <table class="data-table">
+        <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Assets Owned</th><th>Joined</th></tr></thead>
+        <tbody>
+        {% for u in users %}
+        <tr>
+            <td>{{ u[1] }}</td>
+            <td class="text-muted">{{ u[2] }}</td>
+            <td><span class="badge badge-{{ 'blue' if u[3]=='admin' else 'gray' }}">{{ u[3] }}</span></td>
+            <td>{{ u[5] }}</td>
+            <td class="mono text-muted">{{ u[4].strftime('%Y-%m-%d') if u[4] else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty-row">No users found.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Security Dashboard</h1>
+        <p class="page-subtitle">Hello, {{ session.get('username') }} — here's your security posture overview</p>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon stat-blue">◈</div>
+        <div class="stat-body"><div class="stat-value">{{ stats.total_assets }}</div><div class="stat-label">Total Assets</div></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon stat-yellow">⚠</div>
+        <div class="stat-body"><div class="stat-value">{{ stats.total_vulns }}</div><div class="stat-label">Total Vulnerabilities</div></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon stat-red">●</div>
+        <div class="stat-body"><div class="stat-value">{{ stats.high_open }}</div><div class="stat-label">High Risk (Open)</div></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon stat-green">✓</div>
+        <div class="stat-body"><div class="stat-value">{{ stats.resolved }}</div><div class="stat-label">Resolved</div></div>
+    </div>
+</div>
+
+<div class="two-col-grid">
+    {% if risk_data %}
+    <div class="section-card">
+        <div class="card-header"><h2 class="card-title">Open Risk Breakdown</h2></div>
+        <div class="risk-bars">
+            {% set total_open = risk_data | sum(attribute=1) %}
+            {% for risk, count in risk_data %}
+            <div class="risk-bar-row">
+                <span class="risk-label">{{ risk }}</span>
+                <div class="risk-bar-track">
+                    <div class="risk-bar-fill risk-{{ risk|lower }}" style="width:{{ ((count/total_open)*100)|round(1) }}%"></div>
+                </div>
+                <span class="risk-count">{{ count }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="section-card">
+        <div class="card-header"><h2 class="card-title">Most Vulnerable Assets</h2><a href="{{ url_for('list_assets') }}" class="card-link">View all →</a></div>
+        <table class="data-table">
+            <thead><tr><th>Asset</th><th>Open Vulns</th><th>High</th></tr></thead>
+            <tbody>
+            {% for a in top_assets %}
+            <tr>
+                <td><a href="{{ url_for('view_asset', asset_id=a[0]) }}" class="table-link">{{ a[1] }}</a></td>
+                <td>{{ a[2] }}</td>
+                <td><span class="text-red">{{ a[3] }}</span></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="empty-row">No open vulnerabilities.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="two-col-grid">
+    <div class="section-card">
+        <div class="card-header"><h2 class="card-title">Recent Assets</h2><a href="{{ url_for('list_assets') }}" class="card-link">View all →</a></div>
+        <table class="data-table">
+            <thead><tr><th>Asset</th><th>IP</th><th>Owner</th><th>Status</th><th>Open Vulns</th></tr></thead>
+            <tbody>
+            {% for a in recent_assets %}
+            <tr>
+                <td><a href="{{ url_for('view_asset', asset_id=a[0]) }}" class="table-link">{{ a[1] }}</a></td>
+                <td class="mono">{{ a[2] }}</td>
+                <td class="text-muted">{{ a[4] }}</td>
+                <td><span class="badge badge-{{ 'green' if a[3]=='Active' else 'gray' }}">{{ a[3] }}</span></td>
+                <td class="{{ 'text-red' if a[5]>0 else 'text-muted' }}">{{ a[5] }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="empty-row">No assets. <a href="{{ url_for('add_asset') }}">Add one</a>.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section-card">
+        <div class="card-header"><h2 class="card-title">Recent Vulnerabilities</h2><a href="{{ url_for('list_vulnerabilities') }}" class="card-link">View all →</a></div>
+        <table class="data-table">
+            <thead><tr><th>Name</th><th>Risk</th><th>Asset</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for v in recent_vulns %}
+            <tr>
+                <td><a href="{{ url_for('view_vulnerability', vuln_id=v[0]) }}" class="table-link">{{ v[1] }}</a></td>
+                <td><span class="badge badge-risk-{{ v[2]|lower }}">{{ v[2] }}</span></td>
+                <td>{{ v[4] }}</td>
+                <td><span class="badge badge-{{ 'green' if v[3]=='Resolved' else 'yellow' if v[3]=='In Progress' else 'red' }}">{{ v[3] }}</span></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="empty-row">No vulnerabilities logged.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

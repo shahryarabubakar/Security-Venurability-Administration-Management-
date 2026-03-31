@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SVAMS{% endblock %} — Vulnerability Management & Scan Result Database</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<nav class="navbar">
+    <a href="{{ url_for('dashboard') }}" class="nav-brand">
+        <span class="brand-icon">⬡</span>
+        <span class="brand-text">SVAMS</span>
+    </a>
+    <ul class="nav-links">
+        <li><a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' }}">Dashboard</a></li>
+        <li><a href="{{ url_for('list_assets') }}" class="{{ 'active' if 'asset' in (request.endpoint or '') }}">Assets</a></li>
+        <li><a href="{{ url_for('list_vulnerabilities') }}" class="{{ 'active' if 'vulnerabilit' in (request.endpoint or '') }}">Vulnerabilities</a></li>
+        <li><a href="{{ url_for('scan_history') }}" class="{{ 'active' if 'scan' in (request.endpoint or '') }}">Scan History</a></li>
+        <li><a href="{{ url_for('statistics') }}" class="{{ 'active' if request.endpoint == 'statistics' }}">Statistics</a></li>
+        <li><a href="{{ url_for('list_tags') }}" class="{{ 'active' if 'tag' in (request.endpoint or '') }}">Tags</a></li>
+        <li><a href="{{ url_for('upload_zap') }}" class="{{ 'active' if request.endpoint == 'upload_zap' }}">ZAP Import</a></li>
+        {% if session.get('role') == 'admin' %}
+        <li><a href="{{ url_for('audit_log') }}" class="{{ 'active' if request.endpoint == 'audit_log' }}">Audit Log</a></li>
+        <li><a href="{{ url_for('list_users') }}" class="{{ 'active' if 'user' in (request.endpoint or '') }}">Users</a></li>
+        {% endif %}
+    </ul>
+    <div class="nav-actions">
+        <span class="nav-user">
+            <span class="user-dot"></span>{{ session.get('username', '') }}
+            {% if session.get('role') == 'admin' %}
+            <span class="badge badge-blue" style="font-size:.65rem;padding:.1rem .4rem">admin</span>
+            {% endif %}
+        </span>
+        <a href="{{ url_for('add_asset') }}" class="btn btn-sm btn-primary">+ Asset</a>
+        <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline">Logout</a>
+    </div>
+</nav>
+
+<main class="main-content">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-container">
+                {% for category, message in messages %}
+                    <div class="flash flash-{{ category }}">
+                        <span class="flash-icon">{% if category == 'success' %}✓{% else %}✕{% endif %}</span>
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+</main>
+
+<footer class="footer">
+    <span>SVAMS &copy; 2025</span>
+    <span class="footer-sep">|</span>
+    <span>Vulnerability Management &amp; Scan Result Database System</span>
+</footer>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

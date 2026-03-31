@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Statistics{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Statistics &amp; Analytics</h1>
+        <p class="page-subtitle">Vulnerability overview and trends</p>
+    </div>
+</div>
+
+<div class="stats-grid" style="margin-bottom:1.5rem">
+    <div class="stat-card">
+        <div class="stat-icon stat-red">⚠</div>
+        <div class="stat-body">
+            <div class="stat-value">{{ risk_counts | sum(attribute=1) }}</div>
+            <div class="stat-label">Open Findings</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon stat-blue">◈</div>
+        <div class="stat-body">
+            <div class="stat-value">{{ scanner_counts | sum(attribute=1) }}</div>
+            <div class="stat-label">Total Scans</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon stat-green">✓</div>
+        <div class="stat-body">
+            {% set resolved = status_counts | selectattr(0, 'equalto', 'Resolved') | list %}
+            <div class="stat-value">{{ resolved[0][1] if resolved else 0 }}</div>
+            <div class="stat-label">Resolved</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon stat-yellow">⬡</div>
+        <div class="stat-body">
+            <div class="stat-value">{{ top_assets | length }}</div>
+            <div class="stat-label">Assets with Open Vulns</div>
+        </div>
+    </div>
+</div>
+
+<div class="two-col-grid">
+    <div class="section-card">
+        <div class="card-header"><h2 class="card-title">Risk Level Distribution (Open)</h2></div>
+        <div style="height:300px;padding:1rem">
+            <canvas id="riskChart"></canvas>
+        </div>
+    </div>
+    <div class="section-card">
+        <div class="card-header"><h2 class="card-title">Vulnerability Status</h2></div>
+        <div style="height:300px;padding:1rem">
+            <canvas id="statusChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="two-col-grid" style="margin-top:1.5rem">
+    <div class="section-card">
+        <div class="card-header"><h2 class="card-title">Scanner Type Distribution</h2></div>
+        <div style="height:260px;padding:1rem">
+            <canvas id="scannerChart"></canvas>
+        </div>
+    </div>
+    <div class="section-card">
+        <div class="card-header"><h2 class="card-title">Top Vulnerable Assets</h2></div>
+        <table class="data-table">
+            <thead><tr><th>Asset</th><th>Open Vulns</th></tr></thead>
+            <tbody>
+            {% for a in top_assets %}
+            <tr>
+                <td>{{ a[0] }}</td>
+                <td class="text-red">{{ a[1] }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="2" class="empty-row">No open vulnerabilities.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const riskLabels   = {{ risk_counts   | map(attribute=0) | list | tojson }};
+    const riskData     = {{ risk_counts   | map(attribute=1) | list | tojson }};
+    const statusLabels = {{ status_counts | map(attribute=0) | list | tojson }};
+    const statusData   = {{ status_counts | map(attribute=1) | list | tojson }};
+    const scanLabels   = {{ scanner_counts | map(attribute=0) | list | tojson }};
+    const scanData     = {{ scanner_counts | map(attribute=1) | list | tojson }};
+
+    const riskColors   = ['#dc3545','#fd7e14','#ffc107','#0d6efd','#6c757d'];
+    const statusColors = ['#dc3545','#ffc107','#198754','#6c757d'];
+
+    new Chart(document.getElementById('riskChart'), {
+        type: 'pie',
+        data: { labels: riskLabels, datasets: [{ data: riskData, backgroundColor: riskColors }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+
+    new Chart(document.getElementById('statusChart'), {
+        type: 'doughnut',
+        data: { labels: statusLabels, datasets: [{ data: statusData, backgroundColor: statusColors }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+
+    new Chart(document.getElementById('scannerChart'), {
+        type: 'bar',
+        data: {
+            labels: scanLabels,
+            datasets: [{ label: 'Scans', data: scanData,
+                backgroundColor: ['#4f8ef7','#2dbd6e','#f0b429','#e0464b'] }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Tags{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div><h1 class="page-title">Tags</h1><p class="page-subtitle">Organize assets with labels</p></div>
+</div>
+
+<div class="two-col-grid">
+    <div class="section-card">
+        <div class="card-header"><h2 class="card-title">All Tags</h2></div>
+        <table class="data-table">
+            <thead><tr><th>Tag</th><th>Assets</th><th>Actions</th></tr></thead>
+            <tbody>
+            {% for t in tags %}
+            <tr>
+                <td><span class="tag-pill" style="background:{{ t[2] }}22;color:{{ t[2] }};border-color:{{ t[2] }}44">{{ t[1] }}</span></td>
+                <td>{{ t[3] }}</td>
+                <td>
+                    {% if session.get('role') == 'admin' %}
+                    <form method="POST" action="{{ url_for('delete_tag', tag_id=t[0]) }}" onsubmit="return confirm('Delete tag {{ t[1] }}?')">
+                        <button type="submit" class="btn btn-xs btn-danger">Delete</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="empty-row">No tags yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="form-card" style="max-width:100%">
+        <h2 class="card-title" style="margin-bottom:1.25rem">Create Tag</h2>
+        <form method="POST" action="{{ url_for('add_tag') }}">
+            <div class="form-group" style="margin-bottom:1rem">
+                <label class="form-label">Tag Name</label>
+                <input class="form-input" type="text" name="name" placeholder="e.g. production" required>
+            </div>
+            <div class="form-group" style="margin-bottom:1.25rem">
+                <label class="form-label">Color</label>
+                <input class="form-input" type="color" name="color" value="#4f8ef7" style="height:42px;padding:.3rem">
+            </div>
+            <button type="submit" class="btn btn-primary">Create Tag</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

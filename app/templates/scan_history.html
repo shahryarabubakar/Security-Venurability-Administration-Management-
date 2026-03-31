@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Scan History{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Scan History</h1>
+        <p class="page-subtitle">All imported and recorded vulnerability scan results</p>
+    </div>
+    <div class="page-actions">
+        <a href="{{ url_for('upload_zap') }}" class="btn btn-primary">Upload New ZAP Scan</a>
+    </div>
+</div>
+
+<div class="section-card">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Scan Name</th>
+                <th>Scanner</th>
+                <th>Run By</th>
+                <th>Started At</th>
+                <th>Status</th>
+                <th>Findings</th>
+                <th>Notes</th>
+                {% if session.get('role') == 'admin' %}
+                <th>Actions</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+        {% if scans %}
+            {% for s in scans %}
+            {# s: id,scan_name,scanner_type,started_at,completed_at,status,notes,run_by,vuln_count #}
+            <tr>
+                <td class="mono text-muted">{{ s[0] }}</td>
+                <td><strong>{{ s[1] }}</strong></td>
+                <td><span class="badge badge-blue">{{ s[2] }}</span></td>
+                <td class="text-muted">{{ s[7] }}</td>
+                <td class="mono text-muted">{{ s[3].strftime('%Y-%m-%d %H:%M') if s[3] else '—' }}</td>
+                <td>
+                    <span class="badge badge-{{ 'green' if s[5]=='Completed' else 'yellow' if s[5]=='Running' else 'red' }}">
+                        {{ s[5] }}
+                    </span>
+                </td>
+                <td class="{{ 'text-red' if s[8]>0 else 'text-muted' }}">{{ s[8] }}</td>
+                <td class="text-muted">{{ s[6] or '—' }}</td>
+                {% if session.get('role') == 'admin' %}
+                <td>
+                    <form method="POST" action="{{ url_for('delete_scan', scan_id=s[0]) }}"
+                          onsubmit="return confirm('Delete this scan record?')">
+                        <button type="submit" class="btn btn-xs btn-danger">Delete</button>
+                    </form>
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="9" class="empty-row" style="text-align:center;padding:2rem">
+                    No scans recorded yet.<br>
+                    <a href="{{ url_for('upload_zap') }}" class="btn btn-sm btn-primary" style="margin-top:.75rem">
+                        Upload your first ZAP scan
+                    </a>
+                </td>
+            </tr>
+        {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

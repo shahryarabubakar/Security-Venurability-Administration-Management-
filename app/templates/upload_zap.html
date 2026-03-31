@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Import ZAP Report{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div><h1 class="page-title">Import ZAP Report</h1><p class="page-subtitle">Upload an OWASP ZAP JSON export to auto-import vulnerabilities</p></div>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline">← Dashboard</a>
+</div>
+
+<div class="form-card">
+    <div class="zap-info">
+        <div class="zap-icon">⚡</div>
+        <div>
+            <strong>How to export from ZAP:</strong>
+            <p class="text-muted">In OWASP ZAP → Report → Generate Report → Select JSON format → Save the file → Upload here.</p>
+        </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('upload_zap') }}" enctype="multipart/form-data">
+        <div class="form-grid">
+            <div class="form-group form-full">
+                <label class="form-label">Target Asset <span class="required">*</span></label>
+                <select class="form-select" name="asset_id" required>
+                    <option value="">— Select an asset —</option>
+                    {% for a in assets %}
+                    <option value="{{ a[0] }}" {{ 'selected' if request.args.get('asset_id')==a[0]|string }}>{{ a[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group form-full">
+                <label class="form-label">ZAP JSON File <span class="required">*</span></label>
+                <div class="file-drop-zone" id="dropZone">
+                    <input type="file" id="zap_file" name="zap_file" accept=".json" required class="file-input">
+                    <div class="file-drop-content" id="dropContent">
+                        <div class="file-icon">📄</div>
+                        <p>Drop your ZAP JSON file here or <span class="file-browse">browse</span></p>
+                        <p class="text-muted">Only .json files, max 16MB</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="form-actions">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-outline">Cancel</a>
+            <button type="submit" class="btn btn-primary">Import Vulnerabilities</button>
+        </div>
+    </form>
+</div>
+
+<script>
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('zap_file');
+const dropContent = document.getElementById('dropContent');
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length > 0) {
+        dropContent.innerHTML = `<div class="file-icon">✅</div><p><strong>${fileInput.files[0].name}</strong></p><p class="text-muted">${(fileInput.files[0].size/1024).toFixed(1)} KB</p>`;
+    }
+});
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length > 0) { fileInput.files = e.dataTransfer.files; fileInput.dispatchEvent(new Event('change')); }
+});
+</script>
+{% endblock %}
