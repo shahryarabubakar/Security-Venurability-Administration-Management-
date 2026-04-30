@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ code }} {{ title }} — SVAMS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="auth-body">
+<div class="auth-container" style="text-align:center;max-width:480px">
+    <div class="auth-brand" style="justify-content:center">
+        <span class="brand-icon" style="font-size:2rem">⬡</span>
+        <span class="brand-text" style="font-size:1.4rem">SVAMS</span>
+    </div>
+
+    <div style="font-family:var(--font-mono);font-size:4rem;font-weight:700;color:var(--red);line-height:1;margin:1rem 0">
+        {{ code }}
+    </div>
+
+    <h1 style="font-size:1.3rem;font-weight:600;color:#fff;margin-bottom:.5rem">{{ title }}</h1>
+    <p style="color:var(--text-muted);font-size:.9rem;margin-bottom:1.75rem">{{ message }}</p>
+
+    <div style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap">
+        {% if session.get('user_id') %}
+        <a href="{{ url_for('dashboard') }}" class="btn btn-primary">← Dashboard</a>
+        {% else %}
+        <a href="{{ url_for('login') }}" class="btn btn-primary">← Sign in</a>
+        {% endif %}
+        <a href="javascript:history.back()" class="btn btn-outline">Go back</a>
+    </div>
+</div>
+</body>
+</html>

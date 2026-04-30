@@ -16,6 +16,7 @@
     </div>
 
     <form method="POST" action="{{ url_for('upload_zap') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-grid">
             <div class="form-group form-full">
                 <label class="form-label">Target Asset <span class="required">*</span></label>
@@ -33,7 +34,7 @@
                     <div class="file-drop-content" id="dropContent">
                         <div class="file-icon">📄</div>
                         <p>Drop your ZAP JSON file here or <span class="file-browse">browse</span></p>
-                        <p class="text-muted">Only .json files, max 16MB</p>
+                        <p class="text-muted">Only .json files, max 16 MB</p>
                     </div>
                 </div>
             </div>
@@ -46,19 +47,30 @@
 </div>
 
 <script>
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('zap_file');
+const dropZone   = document.getElementById('dropZone');
+const fileInput  = document.getElementById('zap_file');
 const dropContent = document.getElementById('dropContent');
+
+function updateDropContent(file) {
+    dropContent.innerHTML = '<div class="file-icon">✅</div><p><strong>' + file.name + '</strong></p><p class="text-muted">' + (file.size / 1024).toFixed(1) + ' KB</p>';
+}
+
 fileInput.addEventListener('change', () => {
-    if (fileInput.files.length > 0) {
-        dropContent.innerHTML = `<div class="file-icon">✅</div><p><strong>${fileInput.files[0].name}</strong></p><p class="text-muted">${(fileInput.files[0].size/1024).toFixed(1)} KB</p>`;
-    }
+    if (fileInput.files.length > 0) updateDropContent(fileInput.files[0]);
 });
+
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
 dropZone.addEventListener('drop', e => {
-    e.preventDefault(); dropZone.classList.remove('drag-over');
-    if (e.dataTransfer.files.length > 0) { fileInput.files = e.dataTransfer.files; fileInput.dispatchEvent(new Event('change')); }
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        const dt = new DataTransfer();
+        dt.items.add(files[0]);
+        fileInput.files = dt.files;
+        updateDropContent(files[0]);
+    }
 });
 </script>
 {% endblock %}

@@ -29,13 +29,14 @@
     {% endwith %}
 
     <form method="POST" action="{{ url_for('login') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group" style="margin-bottom:1rem">
             <label class="form-label">Username</label>
-            <input class="form-input" type="text" name="username" placeholder="your username" required autofocus>
+            <input class="form-input" type="text" name="username" placeholder="your username" required autofocus autocomplete="username">
         </div>
         <div class="form-group" style="margin-bottom:1.5rem">
             <label class="form-label">Password</label>
-            <input class="form-input" type="password" name="password" placeholder="••••••••" required>
+            <input class="form-input" type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
         </div>
         <button type="submit" class="btn btn-primary" style="width:100%">Sign in</button>
     </form>

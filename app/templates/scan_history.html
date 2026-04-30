@@ -49,6 +49,7 @@
                 <td>
                     <form method="POST" action="{{ url_for('delete_scan', scan_id=s[0]) }}"
                           onsubmit="return confirm('Delete this scan record?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-xs btn-danger">Delete</button>
                     </form>
                 </td>

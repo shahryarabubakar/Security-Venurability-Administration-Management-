@@ -85,6 +85,11 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    // Theme colors matching the app's CSS variables
+    Chart.defaults.color = '#7b839e';
+    Chart.defaults.borderColor = '#252a38';
+    Chart.defaults.font.family = "'DM Sans', sans-serif";
+
     const riskLabels   = {{ risk_counts   | map(attribute=0) | list | tojson }};
     const riskData     = {{ risk_counts   | map(attribute=1) | list | tojson }};
     const statusLabels = {{ status_counts | map(attribute=0) | list | tojson }};
@@ -92,32 +97,92 @@ document.addEventListener('DOMContentLoaded', function () {
     const scanLabels   = {{ scanner_counts | map(attribute=0) | list | tojson }};
     const scanData     = {{ scanner_counts | map(attribute=1) | list | tojson }};
 
-    const riskColors   = ['#dc3545','#fd7e14','#ffc107','#0d6efd','#6c757d'];
-    const statusColors = ['#dc3545','#ffc107','#198754','#6c757d'];
+    // Risk colors: Critical, High, Medium, Low, Info
+    const riskColorMap = {
+        'Critical': '#ff6b6b',
+        'High':     '#e0464b',
+        'Medium':   '#f07320',
+        'Low':      '#f0b429',
+        'Info':     '#4f8ef7'
+    };
+    const riskColors = riskLabels.map(l => riskColorMap[l] || '#7b839e');
+
+    // Status colors: Open, In Progress, Resolved, False Positive
+    const statusColorMap = {
+        'Open':           '#e0464b',
+        'In Progress':    '#f0b429',
+        'Resolved':       '#2dbd6e',
+        'False Positive': '#5e6884'
+    };
+    const statusColors = statusLabels.map(l => statusColorMap[l] || '#7b839e');
+
+    const scannerPalette = ['#4f8ef7', '#2dbd6e', '#f0b429', '#e0464b', '#f07320', '#7b839e'];
+
+    const chartDefaults = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: { color: '#7b839e', padding: 16, font: { size: 12 } }
+            }
+        }
+    };
 
     new Chart(document.getElementById('riskChart'), {
         type: 'pie',
-        data: { labels: riskLabels, datasets: [{ data: riskData, backgroundColor: riskColors }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        data: {
+            labels: riskLabels,
+            datasets: [{
+                data: riskData,
+                backgroundColor: riskColors,
+                borderColor: '#13161d',
+                borderWidth: 2
+            }]
+        },
+        options: chartDefaults
     });
 
     new Chart(document.getElementById('statusChart'), {
         type: 'doughnut',
-        data: { labels: statusLabels, datasets: [{ data: statusData, backgroundColor: statusColors }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        data: {
+            labels: statusLabels,
+            datasets: [{
+                data: statusData,
+                backgroundColor: statusColors,
+                borderColor: '#13161d',
+                borderWidth: 2
+            }]
+        },
+        options: chartDefaults
     });
 
     new Chart(document.getElementById('scannerChart'), {
         type: 'bar',
         data: {
             labels: scanLabels,
-            datasets: [{ label: 'Scans', data: scanData,
-                backgroundColor: ['#4f8ef7','#2dbd6e','#f0b429','#e0464b'] }]
+            datasets: [{
+                label: 'Scans',
+                data: scanData,
+                backgroundColor: scanLabels.map((_, i) => scannerPalette[i % scannerPalette.length]),
+                borderRadius: 4,
+                borderSkipped: false
+            }]
         },
         options: {
-            responsive: true, maintainAspectRatio: false,
+            ...chartDefaults,
             plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            scales: {
+                x: {
+                    grid: { color: '#252a38' },
+                    ticks: { color: '#7b839e' }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1, color: '#7b839e' },
+                    grid: { color: '#252a38' }
+                }
+            }
         }
     });
 });
