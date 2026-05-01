@@ -7,14 +7,17 @@ Run:  python app.py
 """
 
 import os
+import re
+import secrets
 from functools import wraps
 
 from flask import (
     Flask, render_template, request, redirect,
-    url_for, flash, session,
+    url_for, flash, session, abort,
 )
 from flask_mysqldb import MySQL
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 
 from config import Config
 from zap_parser import parse_zap
@@ -26,6 +29,34 @@ app.config.from_object(Config)
 mysql = MySQL(app)
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+ALLOWED_STATUSES  = {'Open', 'In Progress', 'Resolved', 'False Positive'}
+ALLOWED_RISKS     = {'Critical', 'High', 'Medium', 'Low', 'Info'}
+ALLOWED_ASSET_TYPES = {'Server', 'Workstation', 'Database', 'Network Device', 'Web Application', 'Other'}
+ALLOWED_ASSET_STATUSES = {'Active', 'Inactive', 'Retired'}
+HEX_COLOR_RE = re.compile(r'^#[0-9A-Fa-f]{6}$')
+
+
+# ── CSRF ──────────────────────────────────────────────────────────────────────
+
+def _get_csrf_token() -> str:
+    if '_csrf_token' not in session:
+        session['_csrf_token'] = secrets.token_hex(32)
+    return session['_csrf_token']
+
+
+@app.context_processor
+def inject_csrf():
+    return dict(csrf_token=_get_csrf_token)
+
+
+@app.before_request
+def csrf_protect():
+    if request.method == 'POST':
+        session_token = session.get('_csrf_token', '')
+        form_token    = request.form.get('csrf_token', '')
+        if not session_token or not form_token or not secrets.compare_digest(session_token, form_token):
+            abort(403)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -76,6 +107,35 @@ def admin_required(f):
     return decorated
 
 
+# ── Error Handlers ────────────────────────────────────────────────────────────
+
+@app.errorhandler(403)
+def forbidden(e):
+    return render_template('error.html', code=403,
+                           title='Forbidden',
+                           message='You do not have permission to perform this action.'), 403
+
+
+@app.errorhandler(404)
+def not_found(e):
+    return render_template('error.html', code=404,
+                           title='Page Not Found',
+                           message='The page you requested could not be found.'), 404
+
+
+@app.errorhandler(500)
+def server_error(e):
+    return render_template('error.html', code=500,
+                           title='Server Error',
+                           message='An internal error occurred. Please try again later.'), 500
+
+
+@app.errorhandler(413)
+def too_large(e):
+    flash('File too large. Maximum upload size is 16 MB.', 'error')
+    return redirect(url_for('upload_zap'))
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # AUTH ROUTES
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -89,21 +149,30 @@ def login():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
 
-        cur = mysql.connection.cursor()
-        cur.execute(
-            'SELECT id, username, email, password_hash, role FROM users WHERE username = %s',
-            (username,),
-        )
-        user = cur.fetchone()
-        cur.close()
+        if not username or not password:
+            flash('Username and password are required.', 'error')
+            return render_template('login.html')
+
+        try:
+            cur = mysql.connection.cursor()
+            cur.execute(
+                'SELECT id, username, email, password_hash, role FROM users WHERE username = %s',
+                (username,),
+            )
+            user = cur.fetchone()
+            cur.close()
+        except Exception:
+            flash('A database error occurred. Please try again.', 'error')
+            return render_template('login.html')
 
         if user and check_password_hash(user[3], password):
+            # Clear session to prevent session fixation
+            session.clear()
             session['user_id']  = user[0]
             session['username'] = user[1]
             session['email']    = user[2]
             session['role']     = user[4]
 
-            # Update last_login timestamp
             try:
                 cur2 = mysql.connection.cursor()
                 cur2.execute(
@@ -135,30 +204,44 @@ def register():
         username = request.form.get('username', '').strip()
         email    = request.form.get('email',    '').strip()
         password = request.form.get('password', '')
-        role     = request.form.get('role',     'analyst')
 
         if not username or not email or not password:
             flash('All fields are required.', 'error')
-            return redirect(url_for('register'))
+            return render_template('register.html')
 
-        cur = mysql.connection.cursor()
-        cur.execute(
-            'SELECT id FROM users WHERE username = %s OR email = %s',
-            (username, email),
-        )
-        if cur.fetchone():
-            flash('Username or email already exists.', 'error')
+        if len(username) < 3 or len(username) > 50:
+            flash('Username must be between 3 and 50 characters.', 'error')
+            return render_template('register.html')
+
+        if len(password) < 8:
+            flash('Password must be at least 8 characters long.', 'error')
+            return render_template('register.html')
+
+        # New accounts are always analyst; admins are promoted via DB/admin tools
+        role = 'analyst'
+
+        try:
+            cur = mysql.connection.cursor()
+            cur.execute(
+                'SELECT id FROM users WHERE username = %s OR email = %s',
+                (username, email),
+            )
+            if cur.fetchone():
+                flash('Username or email already in use.', 'error')
+                cur.close()
+                return render_template('register.html')
+
+            hashed = generate_password_hash(password)
+            cur.execute(
+                'INSERT INTO users (username, email, password_hash, role) VALUES (%s,%s,%s,%s)',
+                (username, email, hashed, role),
+            )
+            mysql.connection.commit()
+            new_id = cur.lastrowid
             cur.close()
-            return redirect(url_for('register'))
-
-        hashed = generate_password_hash(password)
-        cur.execute(
-            'INSERT INTO users (username, email, password_hash, role) VALUES (%s,%s,%s,%s)',
-            (username, email, hashed, role),
-        )
-        mysql.connection.commit()
-        new_id = cur.lastrowid
-        cur.close()
+        except Exception:
+            flash('A database error occurred. Please try again.', 'error')
+            return render_template('register.html')
 
         log_action('CREATE', 'user', new_id, f'Registered {username}')
         flash('Account created — please log in.', 'success')
@@ -174,89 +257,90 @@ def register():
 @app.route('/')
 @login_required
 def dashboard():
-    cur = mysql.connection.cursor()
+    try:
+        cur = mysql.connection.cursor()
 
-    cur.execute('SELECT COUNT(*) FROM assets')
-    total_assets = cur.fetchone()[0]
+        cur.execute('SELECT COUNT(*) FROM assets')
+        total_assets = cur.fetchone()[0]
 
-    cur.execute('SELECT COUNT(*) FROM vulnerabilities')
-    total_vulns = cur.fetchone()[0]
+        cur.execute('SELECT COUNT(*) FROM vulnerabilities')
+        total_vulns = cur.fetchone()[0]
 
-    cur.execute(
-        "SELECT COUNT(*) FROM vulnerabilities WHERE risk_level='High' AND status='Open'"
-    )
-    high_open = cur.fetchone()[0]
+        cur.execute(
+            "SELECT COUNT(*) FROM vulnerabilities WHERE risk_level='High' AND status='Open'"
+        )
+        high_open = cur.fetchone()[0]
 
-    cur.execute(
-        "SELECT COUNT(*) FROM vulnerabilities WHERE risk_level='Critical' AND status='Open'"
-    )
-    critical_open = cur.fetchone()[0]
+        cur.execute(
+            "SELECT COUNT(*) FROM vulnerabilities WHERE risk_level='Critical' AND status='Open'"
+        )
+        critical_open = cur.fetchone()[0]
 
-    cur.execute(
-        "SELECT COUNT(*) FROM vulnerabilities WHERE status='Resolved'"
-    )
-    resolved = cur.fetchone()[0]
+        cur.execute(
+            "SELECT COUNT(*) FROM vulnerabilities WHERE status='Resolved'"
+        )
+        resolved = cur.fetchone()[0]
 
-    # Recent assets with owner + open vuln count
-    cur.execute(
-        """
-        SELECT a.id, a.asset_name, a.ip_address, a.status,
-               COALESCE(u.username, 'Unassigned') AS owner,
-               COUNT(v.id) AS vuln_count
-        FROM assets a
-        LEFT JOIN users u ON a.owner_id = u.id
-        LEFT JOIN vulnerabilities v
-               ON a.id = v.asset_id AND v.status != 'Resolved'
-        GROUP BY a.id
-        ORDER BY a.created_at DESC
-        LIMIT 6
-        """
-    )
-    recent_assets = cur.fetchall()
+        cur.execute(
+            """
+            SELECT a.id, a.asset_name, a.ip_address, a.status,
+                   COALESCE(u.username, 'Unassigned') AS owner,
+                   COUNT(v.id) AS vuln_count
+            FROM assets a
+            LEFT JOIN users u ON a.owner_id = u.id
+            LEFT JOIN vulnerabilities v
+                   ON a.id = v.asset_id AND v.status != 'Resolved'
+            GROUP BY a.id
+            ORDER BY a.created_at DESC
+            LIMIT 6
+            """
+        )
+        recent_assets = cur.fetchall()
 
-    # Recent vulnerabilities with asset name
-    cur.execute(
-        """
-        SELECT v.id, v.vuln_name, v.risk_level, v.status,
-               a.asset_name, a.id AS asset_id
-        FROM vulnerabilities v
-        JOIN assets a ON v.asset_id = a.id
-        ORDER BY v.discovered_at DESC
-        LIMIT 6
-        """
-    )
-    recent_vulns = cur.fetchall()
+        cur.execute(
+            """
+            SELECT v.id, v.vuln_name, v.risk_level, v.status,
+                   a.asset_name, a.id AS asset_id
+            FROM vulnerabilities v
+            JOIN assets a ON v.asset_id = a.id
+            ORDER BY v.discovered_at DESC
+            LIMIT 6
+            """
+        )
+        recent_vulns = cur.fetchall()
 
-    # Risk breakdown (open only)
-    cur.execute(
-        """
-        SELECT risk_level, COUNT(*) AS cnt
-        FROM vulnerabilities
-        WHERE status NOT IN ('Resolved', 'False Positive')
-        GROUP BY risk_level
-        ORDER BY FIELD(risk_level,'Critical','High','Medium','Low','Info')
-        """
-    )
-    risk_data = cur.fetchall()
+        cur.execute(
+            """
+            SELECT risk_level, COUNT(*) AS cnt
+            FROM vulnerabilities
+            WHERE status NOT IN ('Resolved', 'False Positive')
+            GROUP BY risk_level
+            ORDER BY FIELD(risk_level,'Critical','High','Medium','Low','Info')
+            """
+        )
+        risk_data = cur.fetchall()
 
-    # Most vulnerable assets
-    cur.execute(
-        """
-        SELECT a.id, a.asset_name,
-               COUNT(v.id)                           AS total,
-               SUM(v.risk_level = 'High')            AS highs,
-               SUM(v.risk_level = 'Critical')        AS criticals
-        FROM assets a
-        JOIN vulnerabilities v ON a.id = v.asset_id
-        WHERE v.status NOT IN ('Resolved', 'False Positive')
-        GROUP BY a.id
-        ORDER BY criticals DESC, highs DESC, total DESC
-        LIMIT 5
-        """
-    )
-    top_assets = cur.fetchall()
+        cur.execute(
+            """
+            SELECT a.id, a.asset_name,
+                   COUNT(v.id)                           AS total,
+                   SUM(v.risk_level = 'High')            AS highs,
+                   SUM(v.risk_level = 'Critical')        AS criticals
+            FROM assets a
+            JOIN vulnerabilities v ON a.id = v.asset_id
+            WHERE v.status NOT IN ('Resolved', 'False Positive')
+            GROUP BY a.id
+            ORDER BY criticals DESC, highs DESC, total DESC
+            LIMIT 5
+            """
+        )
+        top_assets = cur.fetchall()
+        cur.close()
 
-    cur.close()
+    except Exception:
+        flash('Error loading dashboard data.', 'error')
+        return render_template('dashboard.html', stats={}, recent_assets=[],
+                               recent_vulns=[], risk_data=[], top_assets=[])
 
     stats = dict(
         total_assets=total_assets,
@@ -356,24 +440,44 @@ def add_asset():
             cur.close()
             return render_template('add_asset.html', users=users, all_tags=all_tags)
 
-        cur.execute(
-            """
-            INSERT INTO assets
-                (owner_id, asset_name, ip_address, operating_system, asset_type, status)
-            VALUES (%s,%s,%s,%s,%s,%s)
-            """,
-            (owner_id, asset_name, ip_address, os_name, asset_type, status),
-        )
-        mysql.connection.commit()
-        asset_id = cur.lastrowid
+        if asset_type not in ALLOWED_ASSET_TYPES:
+            asset_type = 'Server'
+        if status not in ALLOWED_ASSET_STATUSES:
+            status = 'Active'
 
-        for tid in tag_ids:
+        try:
             cur.execute(
-                'INSERT IGNORE INTO asset_tags (asset_id, tag_id) VALUES (%s,%s)',
-                (asset_id, tid),
+                """
+                INSERT INTO assets
+                    (owner_id, asset_name, ip_address, operating_system, asset_type, status)
+                VALUES (%s,%s,%s,%s,%s,%s)
+                """,
+                (owner_id, asset_name, ip_address, os_name, asset_type, status),
             )
-        mysql.connection.commit()
-        cur.close()
+            mysql.connection.commit()
+            asset_id = cur.lastrowid
+
+            for tid in tag_ids:
+                if str(tid).isdigit():
+                    cur.execute(
+                        'INSERT IGNORE INTO asset_tags (asset_id, tag_id) VALUES (%s,%s)',
+                        (asset_id, int(tid)),
+                    )
+            mysql.connection.commit()
+            cur.close()
+        except Exception:
+            flash('Error saving asset. The IP address may already be in use.', 'error')
+            try:
+                cur.close()
+            except Exception:
+                pass
+            cur2 = mysql.connection.cursor()
+            cur2.execute('SELECT id, username FROM users ORDER BY username')
+            users = cur2.fetchall()
+            cur2.execute('SELECT id, name, color FROM tags ORDER BY name')
+            all_tags = cur2.fetchall()
+            cur2.close()
+            return render_template('add_asset.html', users=users, all_tags=all_tags)
 
         log_action('CREATE', 'asset', asset_id, f'Added {asset_name}')
         flash(f'Asset "{asset_name}" added.', 'success')
@@ -446,13 +550,23 @@ def view_asset(asset_id):
 @login_required
 def delete_asset(asset_id):
     cur = mysql.connection.cursor()
-    cur.execute('SELECT asset_name FROM assets WHERE id = %s', (asset_id,))
+    cur.execute('SELECT asset_name, owner_id FROM assets WHERE id = %s', (asset_id,))
     row = cur.fetchone()
-    if row:
-        cur.execute('DELETE FROM assets WHERE id = %s', (asset_id,))
-        mysql.connection.commit()
-        log_action('DELETE', 'asset', asset_id, f'Deleted {row[0]}')
-        flash(f'Asset "{row[0]}" deleted.', 'success')
+
+    if not row:
+        flash('Asset not found.', 'error')
+        cur.close()
+        return redirect(url_for('list_assets'))
+
+    if session.get('role') != 'admin' and row[1] != session.get('user_id'):
+        flash('You do not have permission to delete this asset.', 'error')
+        cur.close()
+        return redirect(url_for('view_asset', asset_id=asset_id))
+
+    cur.execute('DELETE FROM assets WHERE id = %s', (asset_id,))
+    mysql.connection.commit()
+    log_action('DELETE', 'asset', asset_id, f'Deleted {row[0]}')
+    flash(f'Asset "{row[0]}" deleted.', 'success')
     cur.close()
     return redirect(url_for('list_assets'))
 
@@ -467,6 +581,11 @@ def list_vulnerabilities():
     risk_filter   = request.args.get('risk',   '')
     status_filter = request.args.get('status', '')
     search        = request.args.get('q',      '').strip()
+
+    if risk_filter not in ALLOWED_RISKS | {''}:
+        risk_filter = ''
+    if status_filter not in ALLOWED_STATUSES | {''}:
+        status_filter = ''
 
     cur = mysql.connection.cursor()
 
@@ -538,19 +657,37 @@ def add_vulnerability():
             cur.close()
             return render_template('add_vulnerability.html', assets=assets, scans=scans)
 
-        cur.execute(
-            """
-            INSERT INTO vulnerabilities
+        if risk_level not in ALLOWED_RISKS:
+            risk_level = 'Low'
+        if status not in ALLOWED_STATUSES:
+            status = 'Open'
+
+        if cvss_score is not None:
+            try:
+                cvss_val = float(cvss_score)
+                if not (0.0 <= cvss_val <= 10.0):
+                    cvss_score = None
+            except ValueError:
+                cvss_score = None
+
+        try:
+            cur.execute(
+                """
+                INSERT INTO vulnerabilities
+                    (asset_id, scan_id, cve_id, vuln_name, risk_level, cvss_score,
+                     description, solution, proof, status)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """,
                 (asset_id, scan_id, cve_id, vuln_name, risk_level, cvss_score,
-                 description, solution, proof, status)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            """,
-            (asset_id, scan_id, cve_id, vuln_name, risk_level, cvss_score,
-             description, solution, proof, status),
-        )
-        mysql.connection.commit()
-        vuln_id = cur.lastrowid
-        cur.close()
+                 description, solution, proof, status),
+            )
+            mysql.connection.commit()
+            vuln_id = cur.lastrowid
+            cur.close()
+        except Exception:
+            flash('Error saving vulnerability. Please try again.', 'error')
+            cur.close()
+            return render_template('add_vulnerability.html', assets=assets, scans=scans)
 
         log_action('CREATE', 'vulnerability', vuln_id,
                    f'Added {vuln_name} on asset {asset_id}')
@@ -587,7 +724,8 @@ def view_vulnerability(vuln_id):
     cur.execute(
         """
         SELECT rn.id, rn.note, rn.created_at,
-               COALESCE(u.username, 'System') AS author
+               COALESCE(u.username, 'System') AS author,
+               rn.user_id
         FROM remediation_notes rn
         LEFT JOIN users u ON rn.user_id = u.id
         WHERE rn.vuln_id = %s
@@ -605,8 +743,11 @@ def view_vulnerability(vuln_id):
 @login_required
 def update_vuln_status(vuln_id):
     new_status = request.form.get('status', 'Open')
-    cur = mysql.connection.cursor()
+    if new_status not in ALLOWED_STATUSES:
+        flash('Invalid status value.', 'error')
+        return redirect(request.referrer or url_for('list_vulnerabilities'))
 
+    cur = mysql.connection.cursor()
     if new_status == 'Resolved':
         cur.execute(
             'UPDATE vulnerabilities SET status=%s, resolved_at=NOW() WHERE id=%s',
@@ -617,7 +758,6 @@ def update_vuln_status(vuln_id):
             'UPDATE vulnerabilities SET status=%s, resolved_at=NULL WHERE id=%s',
             (new_status, vuln_id),
         )
-
     mysql.connection.commit()
     cur.close()
     log_action('UPDATE', 'vulnerability', vuln_id, f'Status → {new_status}')
@@ -628,18 +768,25 @@ def update_vuln_status(vuln_id):
 @app.route('/vulnerabilities/<int:vuln_id>/delete', methods=['POST'])
 @login_required
 def delete_vulnerability(vuln_id):
+    if session.get('role') != 'admin':
+        flash('Admin access required to delete vulnerabilities.', 'error')
+        return redirect(url_for('view_vulnerability', vuln_id=vuln_id))
+
     cur = mysql.connection.cursor()
     cur.execute('SELECT asset_id FROM vulnerabilities WHERE id = %s', (vuln_id,))
     row = cur.fetchone()
-    asset_id = row[0] if row else None
+    if not row:
+        flash('Vulnerability not found.', 'error')
+        cur.close()
+        return redirect(url_for('list_vulnerabilities'))
+
+    asset_id = row[0]
     cur.execute('DELETE FROM vulnerabilities WHERE id = %s', (vuln_id,))
     mysql.connection.commit()
     cur.close()
     log_action('DELETE', 'vulnerability', vuln_id, '')
     flash('Vulnerability deleted.', 'success')
-    if asset_id:
-        return redirect(url_for('view_asset', asset_id=asset_id))
-    return redirect(url_for('list_vulnerabilities'))
+    return redirect(url_for('view_asset', asset_id=asset_id))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -650,17 +797,26 @@ def delete_vulnerability(vuln_id):
 @login_required
 def add_note(vuln_id):
     note_text = request.form.get('note', '').strip()
-    if note_text:
-        cur = mysql.connection.cursor()
-        cur.execute(
-            'INSERT INTO remediation_notes (vuln_id, user_id, note) VALUES (%s,%s,%s)',
-            (vuln_id, session['user_id'], note_text),
-        )
-        mysql.connection.commit()
-        note_id = cur.lastrowid
+    if not note_text:
+        flash('Note cannot be empty.', 'error')
+        return redirect(url_for('view_vulnerability', vuln_id=vuln_id))
+
+    cur = mysql.connection.cursor()
+    cur.execute('SELECT id FROM vulnerabilities WHERE id = %s', (vuln_id,))
+    if not cur.fetchone():
+        flash('Vulnerability not found.', 'error')
         cur.close()
-        log_action('CREATE', 'note', note_id, f'Note on vuln #{vuln_id}')
-        flash('Note added.', 'success')
+        return redirect(url_for('list_vulnerabilities'))
+
+    cur.execute(
+        'INSERT INTO remediation_notes (vuln_id, user_id, note) VALUES (%s,%s,%s)',
+        (vuln_id, session['user_id'], note_text),
+    )
+    mysql.connection.commit()
+    note_id = cur.lastrowid
+    cur.close()
+    log_action('CREATE', 'note', note_id, f'Note on vuln #{vuln_id}')
+    flash('Note added.', 'success')
     return redirect(url_for('view_vulnerability', vuln_id=vuln_id))
 
 
@@ -668,20 +824,30 @@ def add_note(vuln_id):
 @login_required
 def delete_note(note_id):
     cur = mysql.connection.cursor()
-    cur.execute('SELECT vuln_id FROM remediation_notes WHERE id = %s', (note_id,))
+    cur.execute('SELECT vuln_id, user_id FROM remediation_notes WHERE id = %s', (note_id,))
     row = cur.fetchone()
-    vuln_id = row[0] if row else None
+
+    if not row:
+        flash('Note not found.', 'error')
+        cur.close()
+        return redirect(url_for('list_vulnerabilities'))
+
+    vuln_id, note_user_id = row
+    if session.get('role') != 'admin' and note_user_id != session.get('user_id'):
+        flash('You can only delete your own notes.', 'error')
+        cur.close()
+        return redirect(url_for('view_vulnerability', vuln_id=vuln_id))
+
     cur.execute('DELETE FROM remediation_notes WHERE id = %s', (note_id,))
     mysql.connection.commit()
+    log_action('DELETE', 'note', note_id, f'Deleted note on vuln #{vuln_id}')
     cur.close()
     flash('Note deleted.', 'success')
-    if vuln_id:
-        return redirect(url_for('view_vulnerability', vuln_id=vuln_id))
-    return redirect(url_for('list_vulnerabilities'))
+    return redirect(url_for('view_vulnerability', vuln_id=vuln_id))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SCAN HISTORY  (new feature)
+# SCAN HISTORY
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.route('/scans')
@@ -711,16 +877,22 @@ def scan_history():
 @admin_required
 def delete_scan(scan_id):
     cur = mysql.connection.cursor()
+    cur.execute('SELECT scan_name FROM scans WHERE id = %s', (scan_id,))
+    row = cur.fetchone()
+    if not row:
+        flash('Scan not found.', 'error')
+        cur.close()
+        return redirect(url_for('scan_history'))
     cur.execute('DELETE FROM scans WHERE id = %s', (scan_id,))
     mysql.connection.commit()
+    log_action('DELETE', 'scan', scan_id, f'Deleted scan: {row[0]}')
     cur.close()
-    log_action('DELETE', 'scan', scan_id, '')
     flash('Scan record deleted.', 'success')
     return redirect(url_for('scan_history'))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STATISTICS  (new feature)
+# STATISTICS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.route('/statistics')
@@ -728,7 +900,6 @@ def delete_scan(scan_id):
 def statistics():
     cur = mysql.connection.cursor()
 
-    # Risk level counts (open only)
     cur.execute(
         """
         SELECT risk_level, COUNT(*) AS cnt
@@ -740,7 +911,6 @@ def statistics():
     )
     risk_counts = cur.fetchall()
 
-    # Status distribution
     cur.execute(
         """
         SELECT status, COUNT(*) AS cnt
@@ -751,7 +921,6 @@ def statistics():
     )
     status_counts = cur.fetchall()
 
-    # Scanner type distribution
     cur.execute(
         """
         SELECT scanner_type, COUNT(*) AS cnt
@@ -761,7 +930,6 @@ def statistics():
     )
     scanner_counts = cur.fetchall()
 
-    # Top 5 most vulnerable assets
     cur.execute(
         """
         SELECT a.asset_name, COUNT(v.id) AS cnt
@@ -813,15 +981,26 @@ def list_tags():
 def add_tag():
     name  = request.form.get('name',  '').strip()
     color = request.form.get('color', '#4f8ef7')
-    if name:
-        cur = mysql.connection.cursor()
-        cur.execute(
-            'INSERT IGNORE INTO tags (name, color) VALUES (%s,%s)',
-            (name, color),
-        )
-        mysql.connection.commit()
-        cur.close()
-        flash(f'Tag "{name}" created.', 'success')
+
+    if not name:
+        flash('Tag name is required.', 'error')
+        return redirect(url_for('list_tags'))
+
+    if len(name) > 50:
+        flash('Tag name must be 50 characters or fewer.', 'error')
+        return redirect(url_for('list_tags'))
+
+    if not HEX_COLOR_RE.match(color):
+        color = '#4f8ef7'
+
+    cur = mysql.connection.cursor()
+    cur.execute(
+        'INSERT IGNORE INTO tags (name, color) VALUES (%s,%s)',
+        (name, color),
+    )
+    mysql.connection.commit()
+    cur.close()
+    flash(f'Tag "{name}" created.', 'success')
     return redirect(url_for('list_tags'))
 
 
@@ -830,8 +1009,15 @@ def add_tag():
 @admin_required
 def delete_tag(tag_id):
     cur = mysql.connection.cursor()
+    cur.execute('SELECT name FROM tags WHERE id = %s', (tag_id,))
+    row = cur.fetchone()
+    if not row:
+        flash('Tag not found.', 'error')
+        cur.close()
+        return redirect(url_for('list_tags'))
     cur.execute('DELETE FROM tags WHERE id = %s', (tag_id,))
     mysql.connection.commit()
+    log_action('DELETE', 'tag', tag_id, f'Deleted tag: {row[0]}')
     cur.close()
     flash('Tag deleted.', 'success')
     return redirect(url_for('list_tags'))
@@ -857,54 +1043,73 @@ def upload_zap():
             flash('Please select an asset.', 'error')
             return render_template('upload_zap.html', assets=assets)
 
-        if not file or not allowed_file(file.filename):
-            flash('Please upload a valid .json file.', 'error')
+        if not file or not file.filename:
+            flash('Please select a file to upload.', 'error')
             return render_template('upload_zap.html', assets=assets)
 
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+        if not allowed_file(file.filename):
+            flash('Only .json files are accepted.', 'error')
+            return render_template('upload_zap.html', assets=assets)
+
+        filename = secure_filename(file.filename)
+        if not filename:
+            flash('Invalid filename.', 'error')
+            return render_template('upload_zap.html', assets=assets)
+
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
         try:
             vulns = parse_zap(filepath)
         except (ValueError, FileNotFoundError) as e:
             flash(f'ZAP parse error: {e}', 'error')
-            os.remove(filepath)
+            try:
+                os.remove(filepath)
+            except OSError:
+                pass
             return render_template('upload_zap.html', assets=assets)
 
-        # Create a scan record for this import
-        cur = mysql.connection.cursor()
-        cur.execute(
-            """
-            INSERT INTO scans (scan_name, scanner_type, status, user_id, notes)
-            VALUES (%s, 'ZAP', 'Completed', %s, %s)
-            """,
-            (
-                f'ZAP Import — {file.filename}',
-                session.get('user_id'),
-                f'Imported {len(vulns)} findings from {file.filename}',
-            ),
-        )
-        mysql.connection.commit()
-        scan_id = cur.lastrowid
+        try:
+            os.remove(filepath)
+        except OSError:
+            pass
 
-        for v in vulns:
+        try:
+            cur = mysql.connection.cursor()
             cur.execute(
                 """
-                INSERT INTO vulnerabilities
-                    (asset_id, scan_id, vuln_name, risk_level,
-                     description, solution, status)
-                VALUES (%s,%s,%s,%s,%s,%s,'Open')
+                INSERT INTO scans (scan_name, scanner_type, status, user_id, notes)
+                VALUES (%s, 'ZAP', 'Completed', %s, %s)
                 """,
-                (asset_id, scan_id,
-                 v['vuln_name'], v['risk_level'],
-                 v['description'], v['solution']),
+                (
+                    f'ZAP Import — {filename}',
+                    session.get('user_id'),
+                    f'Imported {len(vulns)} findings from {filename}',
+                ),
             )
-        mysql.connection.commit()
-        cur.close()
-        os.remove(filepath)
+            mysql.connection.commit()
+            scan_id = cur.lastrowid
+
+            for v in vulns:
+                cur.execute(
+                    """
+                    INSERT INTO vulnerabilities
+                        (asset_id, scan_id, vuln_name, risk_level,
+                         description, solution, status)
+                    VALUES (%s,%s,%s,%s,%s,%s,'Open')
+                    """,
+                    (asset_id, scan_id,
+                     v['vuln_name'], v['risk_level'],
+                     v['description'], v['solution']),
+                )
+            mysql.connection.commit()
+            cur.close()
+        except Exception:
+            flash('Database error while saving vulnerabilities. Please try again.', 'error')
+            return render_template('upload_zap.html', assets=assets)
 
         log_action('IMPORT', 'vulnerability', int(asset_id),
-                   f'ZAP import: {len(vulns)} vulns from {file.filename}')
+                   f'ZAP import: {len(vulns)} vulns from {filename}')
         flash(f'Imported {len(vulns)} vulnerabilities from ZAP report.', 'success')
         return redirect(url_for('view_asset', asset_id=asset_id))
 
@@ -966,4 +1171,5 @@ def list_users():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+    app.run(debug=debug, port=5000)

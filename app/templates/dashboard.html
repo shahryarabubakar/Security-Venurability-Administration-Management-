@@ -18,12 +18,12 @@
         <div class="stat-body"><div class="stat-value">{{ stats.total_vulns }}</div><div class="stat-label">Total Vulnerabilities</div></div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon stat-red">●</div>
-        <div class="stat-body"><div class="stat-value">{{ stats.high_open }}</div><div class="stat-label">High Risk (Open)</div></div>
+        <div class="stat-icon stat-critical">●</div>
+        <div class="stat-body"><div class="stat-value" style="color:#ff6b6b">{{ stats.critical_open }}</div><div class="stat-label">Critical (Open)</div></div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon stat-green">✓</div>
-        <div class="stat-body"><div class="stat-value">{{ stats.resolved }}</div><div class="stat-label">Resolved</div></div>
+        <div class="stat-icon stat-red">▲</div>
+        <div class="stat-body"><div class="stat-value stat-red">{{ stats.high_open }}</div><div class="stat-label">High Risk (Open)</div></div>
     </div>
 </div>
 
@@ -37,7 +37,7 @@
             <div class="risk-bar-row">
                 <span class="risk-label">{{ risk }}</span>
                 <div class="risk-bar-track">
-                    <div class="risk-bar-fill risk-{{ risk|lower }}" style="width:{{ ((count/total_open)*100)|round(1) }}%"></div>
+                    <div class="risk-bar-fill risk-{{ risk|lower }}" style="width:{{ ((count/total_open)*100)|round(1) if total_open > 0 else 0 }}%"></div>
                 </div>
                 <span class="risk-count">{{ count }}</span>
             </div>
@@ -49,13 +49,13 @@
     <div class="section-card">
         <div class="card-header"><h2 class="card-title">Most Vulnerable Assets</h2><a href="{{ url_for('list_assets') }}" class="card-link">View all →</a></div>
         <table class="data-table">
-            <thead><tr><th>Asset</th><th>Open Vulns</th><th>High</th></tr></thead>
+            <thead><tr><th>Asset</th><th>Open Vulns</th><th>Critical</th></tr></thead>
             <tbody>
             {% for a in top_assets %}
             <tr>
                 <td><a href="{{ url_for('view_asset', asset_id=a[0]) }}" class="table-link">{{ a[1] }}</a></td>
                 <td>{{ a[2] }}</td>
-                <td><span class="text-red">{{ a[3] }}</span></td>
+                <td><span class="{{ 'text-red' if a[4] else 'text-muted' }}">{{ a[4] or 0 }}</span></td>
             </tr>
             {% else %}
             <tr><td colspan="3" class="empty-row">No open vulnerabilities.</td></tr>
@@ -76,7 +76,7 @@
                 <td><a href="{{ url_for('view_asset', asset_id=a[0]) }}" class="table-link">{{ a[1] }}</a></td>
                 <td class="mono">{{ a[2] }}</td>
                 <td class="text-muted">{{ a[4] }}</td>
-                <td><span class="badge badge-{{ 'green' if a[3]=='Active' else 'gray' }}">{{ a[3] }}</span></td>
+                <td><span class="badge badge-{{ 'green' if a[3]=='Active' else 'yellow' if a[3]=='Inactive' else 'gray' }}">{{ a[3] }}</span></td>
                 <td class="{{ 'text-red' if a[5]>0 else 'text-muted' }}">{{ a[5] }}</td>
             </tr>
             {% else %}
@@ -96,7 +96,7 @@
                 <td><a href="{{ url_for('view_vulnerability', vuln_id=v[0]) }}" class="table-link">{{ v[1] }}</a></td>
                 <td><span class="badge badge-risk-{{ v[2]|lower }}">{{ v[2] }}</span></td>
                 <td>{{ v[4] }}</td>
-                <td><span class="badge badge-{{ 'green' if v[3]=='Resolved' else 'yellow' if v[3]=='In Progress' else 'red' }}">{{ v[3] }}</span></td>
+                <td><span class="badge badge-{{ 'green' if v[3]=='Resolved' else 'yellow' if v[3]=='In Progress' else 'gray' if v[3]=='False Positive' else 'red' }}">{{ v[3] }}</span></td>
             </tr>
             {% else %}
             <tr><td colspan="4" class="empty-row">No vulnerabilities logged.</td></tr>

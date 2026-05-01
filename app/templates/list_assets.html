@@ -109,7 +109,7 @@
                         <form method="POST"
                               action="{{ url_for('delete_asset', asset_id=a[0]) }}"
                               onsubmit="return confirm('Delete {{ a[1] }} and all its vulnerabilities?')">
-
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-xs btn-danger">
                                 Delete
                             </button>

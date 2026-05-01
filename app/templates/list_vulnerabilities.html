@@ -11,16 +11,16 @@
 
 <div class="filter-bar">
     <form method="GET" action="{{ url_for('list_vulnerabilities') }}" class="filter-form">
-        <input class="form-input" type="text" name="q" value="{{ search }}" placeholder="Search name or asset...">
+        <input class="form-input" type="text" name="q" value="{{ search }}" placeholder="Search name, asset, CVE...">
         <select class="form-select" name="risk" onchange="this.form.submit()">
             <option value="">All risks</option>
-            {% for r in ['High','Medium','Low','Info'] %}
+            {% for r in ['Critical','High','Medium','Low','Info'] %}
             <option value="{{ r }}" {{ 'selected' if risk_filter==r }}>{{ r }}</option>
             {% endfor %}
         </select>
         <select class="form-select" name="status" onchange="this.form.submit()">
             <option value="">All statuses</option>
-            {% for s in ['Open','In Progress','Resolved'] %}
+            {% for s in ['Open','In Progress','Resolved','False Positive'] %}
             <option value="{{ s }}" {{ 'selected' if status_filter==s }}>{{ s }}</option>
             {% endfor %}
         </select>
@@ -42,8 +42,9 @@
             <td><a href="{{ url_for('view_asset', asset_id=v[6]) }}" class="table-link">{{ v[5] }}</a></td>
             <td>
                 <form method="POST" action="{{ url_for('update_vuln_status', vuln_id=v[0]) }}" style="display:inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <select name="status" class="inline-select" onchange="this.form.submit()">
-                        {% for s in ['Open','In Progress','Resolved'] %}
+                        {% for s in ['Open','In Progress','Resolved','False Positive'] %}
                         <option value="{{ s }}" {{ 'selected' if v[3]==s }}>{{ s }}</option>
                         {% endfor %}
                     </select>
@@ -54,9 +55,12 @@
             <td>
                 <div class="action-btns">
                     <a href="{{ url_for('view_vulnerability', vuln_id=v[0]) }}" class="btn btn-xs btn-outline">Details</a>
-                    <form method="POST" action="{{ url_for('delete_vulnerability', vuln_id=v[0]) }}" onsubmit="return confirm('Delete?')">
+                    {% if session.get('role') == 'admin' %}
+                    <form method="POST" action="{{ url_for('delete_vulnerability', vuln_id=v[0]) }}" onsubmit="return confirm('Delete this vulnerability permanently?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-xs btn-danger">Delete</button>
                     </form>
+                    {% endif %}
                 </div>
             </td>
         </tr>
