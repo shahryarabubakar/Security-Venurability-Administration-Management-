@@ -14,6 +14,7 @@ from werkzeug.security import generate_password_hash
 
 DB = {
     'host':   os.environ.get('MYSQL_HOST',     'localhost'),
+    'port':   int(os.environ.get('MYSQL_PORT', '3306')),
     'user':   os.environ.get('MYSQL_USER',     'root'),
     'passwd': os.environ.get('MYSQL_PASSWORD', 'leo123'),
     'db':     os.environ.get('MYSQL_DB',       'svams'),
