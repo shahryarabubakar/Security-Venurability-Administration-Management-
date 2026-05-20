@@ -1,47 +1,63 @@
+# Group Number: 7
+
+Group Members (Names & Roll Numbers):
+
+- Shahriyar — 23P-0617
+- Asim Shakeel — 22P-9229
+- Atta-ur-Rehman — 22P-9236
+
+Instructor Name: Mehdi
+
+Project Presenters (Name & Roll Numbers):
+
+- Shahriyar — 23P-0617
+- Asim Shakeel — 22P-9229
+- Atta-ur-Rehman — 22P-9236
+
+GitHub Repository URL: https://github.com/shahryarabubakar/Security-Vulnaribility-Administration-Management-
+
 # ⬡ SVAMS
 
 ## Vulnerability Management & Scan Result Database System
 
 **Flask · MySQL · Jinja2 · Chart.js · OWASP ZAP Integration**
 
-
 ## 📁 Project Structure
 
 ```
-svams/  
-├── app.py              ← Flask application — ALL routes live here  
-├── config.py           ← Database & app configuration  
-├── zap\_parser.py       ← OWASP ZAP JSON report parser  
-├── seed\_users.py       ← Run once to create demo users  
-├── requirements.txt    ← Python packages  
-│  
-├── sql/  
-│   └── schema.sql      ← Database schema + sample data (run this first)  
-│  
-└── app/  
-    ├── templates/      ← All Jinja2 HTML templates  
-    │   ├── base.html  
-    │   ├── login.html  
-    │   ├── register.html  
-    │   ├── dashboard.html  
-    │   ├── list\_assets.html  
-    │   ├── add\_asset.html  
-    │   ├── view\_asset.html  
-    │   ├── list\_vulnerabilities.html  
-    │   ├── add\_vulnerability.html  
-    │   ├── view\_vulnerability.html  
-    │   ├── scan\_history.html       ← NEW  
-    │   ├── statistics.html         ← NEW (Chart.js charts)  
-    │   ├── tags.html  
-    │   ├── upload\_zap.html  
-    │   ├── audit\_log.html  
-    │   └── list\_users.html  
-    │  
-    └── static/  
-        ├── css/style.css  
+svams/
+├── app.py              ← Flask application — ALL routes live here
+├── config.py           ← Database & app configuration
+├── zap\_parser.py       ← OWASP ZAP JSON report parser
+├── seed\_users.py       ← Run once to create demo users
+├── requirements.txt    ← Python packages
+│
+├── sql/
+│   └── schema.sql      ← Database schema + sample data (run this first)
+│
+└── app/
+    ├── templates/      ← All Jinja2 HTML templates
+    │   ├── base.html
+    │   ├── login.html
+    │   ├── register.html
+    │   ├── dashboard.html
+    │   ├── list\_assets.html
+    │   ├── add\_asset.html
+    │   ├── view\_asset.html
+    │   ├── list\_vulnerabilities.html
+    │   ├── add\_vulnerability.html
+    │   ├── view\_vulnerability.html
+    │   ├── scan\_history.html       ← NEW
+    │   ├── statistics.html         ← NEW (Chart.js charts)
+    │   ├── tags.html
+    │   ├── upload\_zap.html
+    │   ├── audit\_log.html
+    │   └── list\_users.html
+    │
+    └── static/
+        ├── css/style.css
         └── js/main.js
 ```
-
 
 ## 🧠 Project Architecture & Database Understanding
 
@@ -50,6 +66,7 @@ This section explains how **this exact codebase** is organized internally so you
 ### 1. Project Overview
 
 #### What the project does
+
 SVAMS is a **server-rendered vulnerability and asset management system**. It lets users:
 
 - log in and register accounts
@@ -190,6 +207,7 @@ So when you are looking for the "User model" or "Asset model", you should inspec
 **Purpose**: stores login accounts and user roles
 
 **Fields**
+
 - `id` - `INT AUTO_INCREMENT PRIMARY KEY`
 - `username` - `VARCHAR(50)`, unique, required
 - `email` - `VARCHAR(120)`, unique, required
@@ -199,12 +217,14 @@ So when you are looking for the "User model" or "Asset model", you should inspec
 - `last_login` - `TIMESTAMP NULL`
 
 **Relationships**
+
 - one user can own many `assets` through `assets.owner_id`
 - one user can be linked to many `scans` through `scans.user_id`
 - one user can create many `remediation_notes` through `remediation_notes.user_id`
 - one user can appear in many `audit_log` rows through `audit_log.user_id`
 
 **Mapped code usage**
+
 - `/login` reads from `users`
 - `/register` inserts into `users`
 - `/users` lists all users
@@ -215,6 +235,7 @@ So when you are looking for the "User model" or "Asset model", you should inspec
 **Purpose**: stores the systems being monitored
 
 **Fields**
+
 - `id` - `INT AUTO_INCREMENT PRIMARY KEY`
 - `owner_id` - `INT`, foreign key to `users.id`, nullable
 - `asset_name` - `VARCHAR(100)`, required
@@ -225,17 +246,20 @@ So when you are looking for the "User model" or "Asset model", you should inspec
 - `created_at` - `TIMESTAMP`, default current time
 
 **Relationships**
+
 - belongs to one owner in `users`
 - can have many `vulnerabilities`
 - can have many `tags` through `asset_tags`
 
 **Mapped code usage**
+
 - `/assets` lists assets with joins to users, vulnerabilities, and tags
 - `/assets/add` inserts into `assets`, then inserts into `asset_tags`
 - `/assets/<id>` shows one asset with its vulnerabilities and tags
 - `/assets/<id>/delete` deletes an asset
 
 **Delete behavior**
+
 - deleting an asset cascades to `vulnerabilities` and `asset_tags`
 
 #### `scans`
@@ -243,6 +267,7 @@ So when you are looking for the "User model" or "Asset model", you should inspec
 **Purpose**: stores scan sessions or imported scan history
 
 **Fields**
+
 - `id` - `INT AUTO_INCREMENT PRIMARY KEY`
 - `scan_name` - `VARCHAR(100)`, required
 - `scanner_type` - `ENUM('ZAP','Nessus','Nmap','Manual')`
@@ -253,15 +278,18 @@ So when you are looking for the "User model" or "Asset model", you should inspec
 - `notes` - `TEXT`
 
 **Relationships**
+
 - can be associated with many `vulnerabilities` through `vulnerabilities.scan_id`
 - may be associated with the user who ran/imported the scan
 
 **Mapped code usage**
+
 - `/scans` lists scan history
 - `/upload-zap` inserts a new `scans` row before inserting imported vulnerabilities
 - `/vulnerabilities/add` lets a manual vulnerability optionally reference a scan
 
 **Delete behavior**
+
 - deleting a scan sets `vulnerabilities.scan_id` to `NULL`, because the foreign key uses `ON DELETE SET NULL`
 
 #### `vulnerabilities`
@@ -269,6 +297,7 @@ So when you are looking for the "User model" or "Asset model", you should inspec
 **Purpose**: stores security findings for a specific asset
 
 **Fields**
+
 - `id` - `INT AUTO_INCREMENT PRIMARY KEY`
 - `asset_id` - `INT`, foreign key to `assets.id`, required
 - `scan_id` - `INT`, foreign key to `scans.id`, nullable
@@ -284,11 +313,13 @@ So when you are looking for the "User model" or "Asset model", you should inspec
 - `resolved_at` - `TIMESTAMP NULL`
 
 **Relationships**
+
 - belongs to one `asset`
 - may belong to one `scan`
 - can have many `remediation_notes`
 
 **Mapped code usage**
+
 - `/vulnerabilities` lists vulnerabilities
 - `/vulnerabilities/add` inserts a manual vulnerability
 - `/vulnerabilities/<id>` shows details
@@ -297,6 +328,7 @@ So when you are looking for the "User model" or "Asset model", you should inspec
 - `/upload-zap` bulk-inserts vulnerabilities parsed from a JSON report
 
 **Delete behavior**
+
 - deleting a vulnerability cascades to `remediation_notes`
 
 #### `tags`
@@ -304,14 +336,17 @@ So when you are looking for the "User model" or "Asset model", you should inspec
 **Purpose**: stores reusable labels for assets
 
 **Fields**
+
 - `id` - `INT AUTO_INCREMENT PRIMARY KEY`
 - `name` - `VARCHAR(50)`, unique, required
 - `color` - `VARCHAR(7)`, default hex color
 
 **Relationships**
+
 - many-to-many with `assets` through `asset_tags`
 
 **Mapped code usage**
+
 - `/tags` lists tags
 - `/tags/add` inserts tags
 - `/tags/<id>/delete` deletes tags
@@ -322,19 +357,23 @@ So when you are looking for the "User model" or "Asset model", you should inspec
 **Purpose**: join table for the many-to-many relationship between assets and tags
 
 **Fields**
+
 - `asset_id` - foreign key to `assets.id`
 - `tag_id` - foreign key to `tags.id`
 - composite primary key: `(asset_id, tag_id)`
 
 **Relationships**
+
 - connects one asset to one tag per row
 - allows each asset to have multiple tags and each tag to belong to multiple assets
 
 **Mapped code usage**
+
 - `/assets/add` inserts rows into `asset_tags`
 - `/assets` and `/assets/<id>` read from it using joins
 
 **Delete behavior**
+
 - if an asset or tag is deleted, related `asset_tags` rows are deleted automatically
 
 #### `remediation_notes`
@@ -342,6 +381,7 @@ So when you are looking for the "User model" or "Asset model", you should inspec
 **Purpose**: stores progress notes, comments, or remediation updates for a vulnerability
 
 **Fields**
+
 - `id` - `INT AUTO_INCREMENT PRIMARY KEY`
 - `vuln_id` - `INT`, foreign key to `vulnerabilities.id`
 - `user_id` - `INT`, foreign key to `users.id`, nullable
@@ -349,10 +389,12 @@ So when you are looking for the "User model" or "Asset model", you should inspec
 - `created_at` - `TIMESTAMP`, default current time
 
 **Relationships**
+
 - belongs to one `vulnerability`
 - optionally linked to the user who wrote it
 
 **Mapped code usage**
+
 - `/vulnerabilities/<id>` reads notes for that vulnerability
 - `/vulnerabilities/<id>/notes/add` inserts notes
 - `/notes/<id>/delete` deletes a note
@@ -362,6 +404,7 @@ So when you are looking for the "User model" or "Asset model", you should inspec
 **Purpose**: stores a history of important actions such as create, update, delete, and import operations
 
 **Fields**
+
 - `id` - `INT AUTO_INCREMENT PRIMARY KEY`
 - `user_id` - `INT`, foreign key to `users.id`, nullable
 - `action` - `VARCHAR(50)`, required
@@ -371,10 +414,12 @@ So when you are looking for the "User model" or "Asset model", you should inspec
 - `performed_at` - `TIMESTAMP`, default current time
 
 **Relationships**
+
 - optionally linked to a user
 - conceptually points to many different entities through `target_type` and `target_id`
 
 **Mapped code usage**
+
 - `log_action()` in `app.py` inserts audit rows
 - called after user registration, asset creation/deletion, vulnerability creation/update/deletion, note creation/deletion, scan deletion, tag deletion, and ZAP import
 - `/audit` displays the latest 300 log entries
@@ -517,15 +562,15 @@ upload_zap.html
 
 Because your prompt mentions folders like `routes/`, `controllers/`, and `models/`, here is the most accurate mapping for **this actual repo**.
 
-| Concept you may expect | Actual location in this project | What it really does |
-|------------------------|---------------------------------|---------------------|
-| `routes/` | `app.py` | Flask route decorators such as `@app.route('/assets')` are all here |
-| `controllers/` | `app.py` | The route functions also contain the controller logic and validation |
-| `models/` | `sql/schema.sql` + SQL queries in `app.py` | There are no ORM classes; tables and raw SQL act as the data model |
-| `config/` | `config.py` | Reads DB host, user, password, DB name, secret key, and upload settings |
-| `database/` | `app.py`, `sql/schema.sql`, MySQL server | `app.py` opens cursors; `schema.sql` defines structure; MySQL stores the data |
-| `seeders/` | `seed_users.py` and sample inserts inside `sql/schema.sql` | Initial sample data and real password hashing |
-| `frontend/` | `app/templates/` and `app/static/` | Jinja2 templates, CSS, and JavaScript |
+| Concept you may expect | Actual location in this project                            | What it really does                                                           |
+| ---------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `routes/`              | `app.py`                                                   | Flask route decorators such as `@app.route('/assets')` are all here           |
+| `controllers/`         | `app.py`                                                   | The route functions also contain the controller logic and validation          |
+| `models/`              | `sql/schema.sql` + SQL queries in `app.py`                 | There are no ORM classes; tables and raw SQL act as the data model            |
+| `config/`              | `config.py`                                                | Reads DB host, user, password, DB name, secret key, and upload settings       |
+| `database/`            | `app.py`, `sql/schema.sql`, MySQL server                   | `app.py` opens cursors; `schema.sql` defines structure; MySQL stores the data |
+| `seeders/`             | `seed_users.py` and sample inserts inside `sql/schema.sql` | Initial sample data and real password hashing                                 |
+| `frontend/`            | `app/templates/` and `app/static/`                         | Jinja2 templates, CSS, and JavaScript                                         |
 
 #### Key files to know first
 
@@ -543,16 +588,17 @@ Because your prompt mentions folders like `routes/`, `controllers/`, and `models
 
 CRUD in this project is implemented directly in `app.py` with raw SQL.
 
-| Operation | Where it happens | Main tables involved |
-|-----------|------------------|----------------------|
-| Create | `register()`, `add_asset()`, `add_vulnerability()`, `add_note()`, `add_tag()`, `upload_zap()` | `users`, `assets`, `asset_tags`, `vulnerabilities`, `remediation_notes`, `tags`, `scans`, `audit_log` |
-| Read | `dashboard()`, `list_assets()`, `view_asset()`, `list_vulnerabilities()`, `view_vulnerability()`, `scan_history()`, `statistics()`, `list_tags()`, `audit_log()`, `list_users()` | all major tables |
-| Update | `update_vuln_status()`, login `last_login` update, `seed_users.py` duplicate-key password refresh | `vulnerabilities`, `users` |
-| Delete | `delete_asset()`, `delete_vulnerability()`, `delete_note()`, `delete_scan()`, `delete_tag()` | `assets`, `vulnerabilities`, `remediation_notes`, `scans`, `tags`, `asset_tags`, `audit_log` |
+| Operation | Where it happens                                                                                                                                                                 | Main tables involved                                                                                  |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Create    | `register()`, `add_asset()`, `add_vulnerability()`, `add_note()`, `add_tag()`, `upload_zap()`                                                                                    | `users`, `assets`, `asset_tags`, `vulnerabilities`, `remediation_notes`, `tags`, `scans`, `audit_log` |
+| Read      | `dashboard()`, `list_assets()`, `view_asset()`, `list_vulnerabilities()`, `view_vulnerability()`, `scan_history()`, `statistics()`, `list_tags()`, `audit_log()`, `list_users()` | all major tables                                                                                      |
+| Update    | `update_vuln_status()`, login `last_login` update, `seed_users.py` duplicate-key password refresh                                                                                | `vulnerabilities`, `users`                                                                            |
+| Delete    | `delete_asset()`, `delete_vulnerability()`, `delete_note()`, `delete_scan()`, `delete_tag()`                                                                                     | `assets`, `vulnerabilities`, `remediation_notes`, `scans`, `tags`, `asset_tags`, `audit_log`          |
 
 #### How each CRUD type looks in code
 
 **Create**
+
 - route reads form data
 - validates fields
 - `INSERT` query runs
@@ -560,16 +606,19 @@ CRUD in this project is implemented directly in `app.py` with raw SQL.
 - optional `log_action()` records the event
 
 **Read**
+
 - route executes a `SELECT`
 - often joins related tables
 - data is passed into `render_template(...)`
 
 **Update**
+
 - route executes `UPDATE ... WHERE id = %s`
 - example: status changes in `vulnerabilities`
 - login also updates `users.last_login`
 
 **Delete**
+
 - route checks permissions
 - executes `DELETE`
 - database foreign keys may automatically delete or null related rows
@@ -717,13 +766,11 @@ One extra confusing file is `Folder Structure`. It describes a different archite
 
 - On Ubuntu/Debian: `sudo apt install libmysqlclient-dev pkg-config`
 
-
 ### Step 1 — Install Python packages
 
 ```
 pip install -r requirements.txt
 ```
-
 
 ### Step 2 — Create the database
 
@@ -732,7 +779,6 @@ mysql -u root -p \< sql/schema.sql
 ```
 
 Creates the `svams` database, all 8 tables, and sample data.
-
 
 ### Step 3 — Configure database credentials
 
@@ -748,13 +794,11 @@ Or set environment variables:
 export MYSQL\_PASSWORD=your\_password
 ```
 
-
 ### Step 4 — Seed demo users
 
 ```
 python seed\_users.py
 ```
-
 
 ### Step 5 — Run the application
 
@@ -764,61 +808,54 @@ python app.py
 
 Open: **http://localhost:5000**
 
-
 ## 🔐 Login Credentials
 
-| Username | Password | Role | Access |
-| - | - | - | - |
-| admin | admin123 | Admin | Full access + audit log + users |
-| analyst1 | analyst123 | Analyst | View, create, edit |
-
-
+| Username | Password   | Role    | Access                          |
+| -------- | ---------- | ------- | ------------------------------- |
+| admin    | admin123   | Admin   | Full access + audit log + users |
+| analyst1 | analyst123 | Analyst | View, create, edit              |
 
 ## 🌐 All Routes
 
-| URL | Page | Auth |
-| - | - | - |
-| `/login` | Login | No |
-| `/register` | Register | No |
-| `/` | Dashboard | Yes |
-| `/assets` | Asset list | Yes |
-| `/assets/add` | Add asset | Yes |
-| `/assets/\<id\>` | Asset detail | Yes |
-| `/assets/\<id\>/delete` | Delete asset | Yes |
-| `/vulnerabilities` | Vulnerability list | Yes |
-| `/vulnerabilities/add` | Add vulnerability | Yes |
-| `/vulnerabilities/\<id\>` | Vulnerability detail | Yes |
-| `/vulnerabilities/\<id\>/status` | Update status | Yes |
-| `/vulnerabilities/\<id\>/delete` | Delete vulnerability | Yes |
-| `/vulnerabilities/\<id\>/notes/add` | Add note | Yes |
-| `/notes/\<id\>/delete` | Delete note | Yes |
-| `/scans` | Scan history | Yes |
-| `/scans/\<id\>/delete` | Delete scan | Admin |
-| `/statistics` | Charts & analytics | Yes |
-| `/tags` | Tag manager | Yes |
-| `/tags/add` | Create tag | Yes |
-| `/tags/\<id\>/delete` | Delete tag | Admin |
-| `/upload-zap` | Import ZAP JSON | Yes |
-| `/audit` | Audit log | Admin |
-| `/users` | User list | Admin |
-| `/logout` | Logout | Yes |
-
-
+| URL                                 | Page                 | Auth  |
+| ----------------------------------- | -------------------- | ----- |
+| `/login`                            | Login                | No    |
+| `/register`                         | Register             | No    |
+| `/`                                 | Dashboard            | Yes   |
+| `/assets`                           | Asset list           | Yes   |
+| `/assets/add`                       | Add asset            | Yes   |
+| `/assets/\<id\>`                    | Asset detail         | Yes   |
+| `/assets/\<id\>/delete`             | Delete asset         | Yes   |
+| `/vulnerabilities`                  | Vulnerability list   | Yes   |
+| `/vulnerabilities/add`              | Add vulnerability    | Yes   |
+| `/vulnerabilities/\<id\>`           | Vulnerability detail | Yes   |
+| `/vulnerabilities/\<id\>/status`    | Update status        | Yes   |
+| `/vulnerabilities/\<id\>/delete`    | Delete vulnerability | Yes   |
+| `/vulnerabilities/\<id\>/notes/add` | Add note             | Yes   |
+| `/notes/\<id\>/delete`              | Delete note          | Yes   |
+| `/scans`                            | Scan history         | Yes   |
+| `/scans/\<id\>/delete`              | Delete scan          | Admin |
+| `/statistics`                       | Charts & analytics   | Yes   |
+| `/tags`                             | Tag manager          | Yes   |
+| `/tags/add`                         | Create tag           | Yes   |
+| `/tags/\<id\>/delete`               | Delete tag           | Admin |
+| `/upload-zap`                       | Import ZAP JSON      | Yes   |
+| `/audit`                            | Audit log            | Admin |
+| `/users`                            | User list            | Admin |
+| `/logout`                           | Logout               | Yes   |
 
 ## 🗄 Database Tables
 
-| Table | Description |
-| - | - |
-| `users` | Login accounts (admin / analyst roles) |
-| `assets` | IT systems being monitored |
-| `scans` | Scan sessions (ZAP / Nessus / Nmap / Manual) |
-| `vulnerabilities` | Findings with CVE, CVSS, risk, proof, status |
-| `tags` | Color-coded labels for assets |
-| `asset\_tags` | Many-to-many: assets ↔ tags |
-| `remediation\_notes` | Progress notes on each vulnerability |
-| `audit\_log` | Immutable record of all create/update/delete acts |
-
-
+| Table                | Description                                       |
+| -------------------- | ------------------------------------------------- |
+| `users`              | Login accounts (admin / analyst roles)            |
+| `assets`             | IT systems being monitored                        |
+| `scans`              | Scan sessions (ZAP / Nessus / Nmap / Manual)      |
+| `vulnerabilities`    | Findings with CVE, CVSS, risk, proof, status      |
+| `tags`               | Color-coded labels for assets                     |
+| `asset\_tags`        | Many-to-many: assets ↔ tags                       |
+| `remediation\_notes` | Progress notes on each vulnerability              |
+| `audit\_log`         | Immutable record of all create/update/delete acts |
 
 ## ⚡ Key Features
 
@@ -842,42 +879,48 @@ Open: **http://localhost:5000**
 
 - **Role-based access** — admin sees everything; analyst can view/create/edit
 
-
 ## 🔒 Security — SQL Injection Analysis & Mitigations
 
 This project has been reviewed and updated to explicitly demonstrate SQL Injection (SQLi) awareness and prevention. Below is a concise, evaluator-friendly summary of what SQL Injection is, where we looked in the codebase, what (if anything) was vulnerable, and what was changed.
 
-1) SQL Injection — what it is
+1. SQL Injection — what it is
+
 - SQL Injection is a class of vulnerability that occurs when user-supplied input is embedded directly into SQL statements, allowing attackers to change the intent of queries (for example, by terminating strings, injecting `OR 1=1`, or adding `; DROP TABLE ...`).
 - Attackers exploit unsanitized input to read, modify, or destroy data, or to escalate privileges.
 
 Realistic vulnerable example (NOT in this project):
+
 ```
 # Vulnerable: concatenating user input into SQL
 query = "SELECT * FROM users WHERE username = '" + username + "'"
 cur.execute(query)
 ```
 
-2) Vulnerability analysis of this codebase
+2. Vulnerability analysis of this codebase
+
 - Files reviewed: `app.py`, `seed_users.py`, and database access points.
 - Most SQL statements in `app.py` and `seed_users.py` already used parameterized queries (placeholders like `%s`) with `cursor.execute(query, params)`. Parameterized queries keep SQL structure separate from data and are the primary defense against SQLi.
 - Dynamic SQL building in the application (for example assembling a `WHERE` clause) is done using constant SQL fragments containing `%s` placeholders and a separate `params` list — this is safe when placeholders are preserved and values are supplied as parameters.
 
-3) Specific changes made
+3. Specific changes made
+
 - Added explicit input validation for ID values that originate from user input (form fields). Helper `_to_int()` was added to convert/validate integer IDs before they're used as query parameters. This prevents accidental use of non-numeric strings where numeric IDs are expected.
 - Added explanatory comments in `app.py` near critical INSERT/UPDATE statements to document and demonstrate the use of parameterized statements.
 - Kept all database logic the same functionally; no behavior changes were introduced beyond input validation and clearer documentation/comments.
 
 Which queries were reviewed and found safe
+
 - Authentication (`/login`): `SELECT id, username, ... FROM users WHERE username = %s` — uses parameters.
 - Asset/vulnerability listing & filtering: all `SELECT` statements with user-controlled `q`, `tag`, `status`, and `risk` use `%s` placeholders and parameter lists.
 - Inserts/updates (assets, vulnerabilities, scans, tags, notes, audit_log) use parameterized queries.
 
 Potential risks & mitigations
+
 - Risk: building SQL column names, ORDER BY clauses, or LIMIT values from user input can be dangerous. This project does not use user input for SQL identifiers or raw clauses — where any ordering/filtering is applied it's either constant or uses safe placeholders.
 - Mitigation: input validation functions (e.g. `_to_int`) and whitelists for enumerated values (`ALLOWED_STATUSES`, `ALLOWED_RISKS`, etc.) ensure only expected values are accepted.
 
-4) Why the application is now secure against SQL Injection
+4. Why the application is now secure against SQL Injection
+
 - All data used in SQL statements is passed as parameters to `cursor.execute(...)` rather than interpolated into SQL strings. This separates code (SQL) from data and prevents an attacker from changing the SQL structure.
 - Input validation ensures numeric IDs and enumerated fields cannot be used to manipulate queries.
 - Filenames used in imports are sanitized using `werkzeug.utils.secure_filename()` and are still passed as parameters to statements.
@@ -885,21 +928,18 @@ Potential risks & mitigations
 Summary: The codebase uses parameterized SQL throughout and now includes explicit integer validation for form-derived IDs. Given these protections, the application is secure against SQL Injection when running with the provided code and libraries.
 
 If you would like, I can:
+
 - Add unit tests that attempt to inject SQL into query parameters to demonstrate protections.
 - Harden logging or error handling further to avoid leaking DB error messages to end users.
 
-
-
 ## 🔑 Role Permissions
 
-| Permission | Admin | Analyst |
-| - | - | - |
-| View all pages | ✓ | ✓ |
-| Create / edit records | ✓ | ✓ |
-| Delete records | ✓ | ✗ |
-| Delete scans | ✓ | ✗ |
-| Manage tags | ✓ | ✗ |
-| View audit log | ✓ | ✗ |
-| View user list | ✓ | ✗ |
-
-
+| Permission            | Admin | Analyst |
+| --------------------- | ----- | ------- |
+| View all pages        | ✓     | ✓       |
+| Create / edit records | ✓     | ✓       |
+| Delete records        | ✓     | ✗       |
+| Delete scans          | ✓     | ✗       |
+| Manage tags           | ✓     | ✗       |
+| View audit log        | ✓     | ✗       |
+| View user list        | ✓     | ✗       |
