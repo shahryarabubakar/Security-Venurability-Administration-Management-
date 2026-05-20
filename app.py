@@ -68,6 +68,19 @@ def allowed_file(filename: str) -> bool:
     )
 
 
+def _to_int(value):
+    """Safely convert user-supplied values to int or return None.
+
+    Using explicit conversion prevents accidental use of non-numeric
+    strings in places where integers (IDs) are expected. This is
+    an input-validation helper that complements parameterized SQL.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def log_action(action: str, target_type: str, target_id, detail: str = ''):
     """Write one row to audit_log. Silently ignores DB errors."""
     try:
@@ -432,7 +445,8 @@ def add_asset():
         os_name    = request.form.get('operating_system', '').strip()
         asset_type = request.form.get('asset_type', 'Server')
         status     = request.form.get('status',     'Active')
-        owner_id   = request.form.get('owner_id')  or None
+        owner_id_raw = request.form.get('owner_id')
+        owner_id   = _to_int(owner_id_raw)
         tag_ids    = request.form.getlist('tag_ids')
 
         if not asset_name or not ip_address:
@@ -446,6 +460,8 @@ def add_asset():
             status = 'Active'
 
         try:
+            # Parameterized INSERT: using %s placeholders keeps user data
+            # separate from SQL and prevents SQL injection.
             cur.execute(
                 """
                 INSERT INTO assets
@@ -641,7 +657,8 @@ def add_vulnerability():
     scans = cur.fetchall()
 
     if request.method == 'POST':
-        asset_id    = request.form.get('asset_id')
+        asset_id_raw = request.form.get('asset_id')
+        asset_id    = _to_int(asset_id_raw)
         vuln_name   = request.form.get('vuln_name',   '').strip()
         risk_level  = request.form.get('risk_level',  'Low')
         cve_id      = request.form.get('cve_id',      '').strip() or None
@@ -650,9 +667,11 @@ def add_vulnerability():
         solution    = request.form.get('solution',    '').strip()
         proof       = request.form.get('proof',       '').strip()
         status      = request.form.get('status',      'Open')
-        scan_id     = request.form.get('scan_id')     or None
+        scan_id_raw = request.form.get('scan_id')
+        scan_id     = _to_int(scan_id_raw)
 
-        if not asset_id or not vuln_name:
+        # asset_id must be a valid numeric id; _to_int returns None otherwise
+        if asset_id is None or not vuln_name:
             flash('Asset and vulnerability name are required.', 'error')
             cur.close()
             return render_template('add_vulnerability.html', assets=assets, scans=scans)
@@ -671,6 +690,7 @@ def add_vulnerability():
                 cvss_score = None
 
         try:
+            # Parameterized INSERT; parameters are passed separately to avoid SQL injection.
             cur.execute(
                 """
                 INSERT INTO vulnerabilities
@@ -1036,10 +1056,11 @@ def upload_zap():
     cur.close()
 
     if request.method == 'POST':
-        asset_id = request.form.get('asset_id')
+        asset_id_raw = request.form.get('asset_id')
+        asset_id = _to_int(asset_id_raw)
         file     = request.files.get('zap_file')
 
-        if not asset_id:
+        if asset_id is None:
             flash('Please select an asset.', 'error')
             return render_template('upload_zap.html', assets=assets)
 
@@ -1076,6 +1097,8 @@ def upload_zap():
 
         try:
             cur = mysql.connection.cursor()
+            # Parameterized scan INSERT — filename is user-supplied but passed as a
+            # query parameter (not interpolated into SQL), preventing injection.
             cur.execute(
                 """
                 INSERT INTO scans (scan_name, scanner_type, status, user_id, notes)
@@ -1091,6 +1114,8 @@ def upload_zap():
             scan_id = cur.lastrowid
 
             for v in vulns:
+                # Each vuln field is inserted via parameters; do not build SQL by
+                # concatenating user content into the statement.
                 cur.execute(
                     """
                     INSERT INTO vulnerabilities
